@@ -25,7 +25,7 @@ export default class GameScene extends BaseScene {
     if (this._setupped) {
       return;
     }
-    this._setupped = true
+    this._setupped = true;
   }
 
   /**
@@ -45,46 +45,42 @@ export default class GameScene extends BaseScene {
     if (!this._setupped) {
       return;
     }
+    p5.push();
+    p5.fill("#fff");
+    p5.textAlign(p5.CENTER, p5.CENTER);
+    p5.text("GAME", p5.width / 2, p5.height / 2);
+    p5.pop();
   }
 
   /**
    * @param {import('p5')} p5
    * @param {MouseEvent} event
    */
-  mouseMoved(p5, event) {
-
-  }
+  mouseMoved(p5, event) {}
 
   /**
    * @param {import('p5')} p5
    * @param {MouseEvent} event
    */
-  mousePressed(p5, event) {
-  }
+  mousePressed(p5, event) {}
 
   /**
    * @param {import('p5')} p5
    * @param {MouseEvent} event
    */
-  mouseReleased(p5, event) {
-
-  }
+  mouseReleased(p5, event) {}
 
   /**
    * @param {import('p5')} p5
    * @param {KeyboardEvent} event
    */
-  keyPressed(p5, event) {
-
-  }
+  keyPressed(p5, event) {}
 
   /**
    * @param {import('p5')} p5
    * @param {KeyboardEvent} event
    */
-  keyReleased(p5, event) {
-
-  }
+  keyReleased(p5, event) {}
 
   /**
    * @template {BaseScene} Scene

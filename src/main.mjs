@@ -20,7 +20,7 @@ const RUNTIME = new P5Runtime({
 
 const LOADING = new LoadingScene({
   resources: resources,
-  nextScene: "menu",
+  nextScene: "game",
   title: "Loading",
   getStatusText: null,
 });
@@ -53,6 +53,6 @@ new window.p5(
     p5.mouseMoved = (event) => RUNTIME.mouseMoved(p5, event);
     p5.mouseClicked = (event) => RUNTIME.mouseClicked(p5, event);
     p5.mousePressed = (event) => RUNTIME.mousePressed(p5, event);
-    p5.mouseReleased = (event) => RUNTIME.mouseReleased(p5, event)
+    p5.mouseReleased = (event) => RUNTIME.mouseReleased(p5, event);
   },
 );
