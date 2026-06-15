@@ -1,0 +1,31 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    working_dir: /app
+
+    ports:
+      - "5173:5173"
+
+    volumes:
+      # Bind-mount the project so src edits and package-lock.json changes persist locally.
+      - .:/app
+
+      # Keep installed dependencies inside Docker, not on your host.
+      - node_modules:/app/node_modules
+
+      # Optional but nice: persist npm cache between container runs.
+      - npm_cache:/home/node/.npm
+
+    environment:
+      # Helps Vite file watching work reliably across Docker Desktop / mounted volumes.
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "100"
+
+    command: npm run dev -- --host 0.0.0.0 --debug
+
+volumes:
+  node_modules:
+  npm_cache:

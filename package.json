@@ -1,0 +1,26 @@
+{
+  "name": "go-king-of-the-hill",
+  "version": "0.0.0",
+  "license": "CC0-4.0",
+  "private": true,
+  "type": "module",
+  "author": "",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "format": "prettier --write 'src/**/*.{mjs,js,ts,jsx,tsx,json,css,md}' 'tests/**/*.{mjs,js,ts,jsx,tsx,json,css,md}'",
+    "preview": "vite preview",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.29.0",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.1",
+    "globals": "^17.3.0",
+    "prettier": "^3.8.1",
+    "vite": "^7.3.1"
+  },
+  "dependencies": {}
+}
