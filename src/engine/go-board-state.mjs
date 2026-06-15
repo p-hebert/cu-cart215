@@ -1,3 +1,5 @@
+import GoRulesHelper from "src/engine/go-rules-helper.mjs";
+
 /**
  * @typedef {"black" | "white" | "blood-red" | "midnight-blue"} StoneColorName
  */
@@ -20,6 +22,10 @@ export default class GoBoardState {
 
     /** @type {BoardCell[][]} */
     this.board = this.createEmptyBoard();
+
+    this.rulesHelper = new GoRulesHelper({
+      boardSize: this.boardSize,
+    });
 
     /** @type {BoardCell[][][]} */
     this.undoStack = [];
@@ -86,6 +92,54 @@ export default class GoBoardState {
   commitHistorySnapshot() {
     this.undoStack.push(this.cloneBoard());
     this.redoStack = [];
+  }
+
+  /**
+   * For simple ko, compare the resulting board against the board position
+   * before the immediately previous move.
+   *
+   * Since undoStack stores snapshots from before each committed move,
+   * the latest undoStack entry is exactly that previous board position.
+   *
+   * @returns {BoardCell[][] | null}
+   */
+  getPreviousBoardForKo() {
+    if (this.undoStack.length === 0) return null;
+
+    return this.undoStack[this.undoStack.length - 1];
+  }
+
+  /**
+   * @param {number} col
+   * @param {number} row
+   * @param {StoneColorName} colorName
+   * @returns {MoveResult}
+   */
+  getLegalMovePreview(col, row, colorName) {
+    const previousBoard = this.getPreviousBoardForKo();
+
+    return this.rulesHelper.getMoveResult(this.board, col, row, colorName, {
+      previousBoard,
+    });
+  }
+
+  /**
+   * @param {number} col
+   * @param {number} row
+   * @param {StoneColorName} colorName
+   * @returns {MoveResult}
+   */
+  placeLegalStone(col, row, colorName) {
+    const moveResult = this.getLegalMovePreview(col, row, colorName);
+
+    if (!moveResult.legal) {
+      return moveResult;
+    }
+
+    this.commitHistorySnapshot();
+    this.board = this.cloneBoard(moveResult.resultingBoard);
+
+    return moveResult;
   }
 
   /**

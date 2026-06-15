@@ -1,8 +1,8 @@
 import Board from "src/components/board.mjs";
 import HistoryButtonGroup from "src/components/history-button-group.mjs";
 import StoneSelector from "src/components/stone-selector.mjs";
+import GoBoardState from "src/engine/go-board-state.mjs";
 import { BaseScene } from "src/p5/scene.mjs";
-import GoBoardState from "src/state/go-board-state.mjs";
 
 const STONE_COLORS = {
   black: "#000000",
@@ -35,6 +35,7 @@ export default class GameScene extends BaseScene {
     this.historyButtonGroup = null;
     // { col, row } | null
     this.hoveredIntersection = null;
+    this.hoverMoveResult = null;
 
     this._setupped = false;
   }
@@ -98,6 +99,7 @@ export default class GameScene extends BaseScene {
 
     this.board.draw(p5);
     this.drawStones(p5);
+    this.drawCapturePreview(p5);
     this.drawGhostStone(p5);
 
     this.historyButtonGroup.draw(p5);
@@ -122,49 +124,89 @@ export default class GameScene extends BaseScene {
   }
 
   /**
-   * @param {import('p5')} p5
+   * @param {import("p5")} p5
    */
-  drawGhostStone(p5) {
-    if (!this.hoveredIntersection) return;
+  drawCapturePreview(p5) {
+    if (!this.hoverMoveResult) return;
+    if (!this.hoverMoveResult.legal) return;
 
-    const { col, row } = this.hoveredIntersection;
-
-    if (!this.goBoardState.isEmpty(col, row)) return;
-
-    const colorName = this.stoneSelector.getSelectedColorName();
-
-    this.drawStoneAtGridPosition(p5, col, row, colorName, GHOST_STONE_ALPHA);
+    for (const position of this.hoverMoveResult.capturedPositions) {
+      this.drawStoneCaptureOutline(p5, position.col, position.row);
+    }
   }
 
   /**
-   * @param {import('p5')} p5
+   * @param {import("p5")} p5
+   * @param {number} col
+   * @param {number} row
+   */
+  drawStoneCaptureOutline(p5, col, row) {
+    const { x, y } = this.board.gridToWorld(p5, col, row);
+
+    p5.push();
+    {
+      p5.noFill();
+      p5.stroke("#0f0");
+      p5.strokeWeight(4);
+      p5.circle(x, y, STONE_SIZE + 8);
+    }
+    p5.pop();
+  }
+
+  /**
+   * @param {import("p5")} p5
+   */
+  drawGhostStone(p5) {
+    if (!this.hoveredIntersection) return;
+    if (!this.hoverMoveResult) return;
+
+    const { col, row } = this.hoveredIntersection;
+    const colorName = this.stoneSelector.getSelectedColorName();
+
+    const strokeColor = this.hoverMoveResult.legal ? "#000000" : "#f00";
+    const strokeWeight = this.hoverMoveResult.legal ? 1.5 : 4;
+
+    this.drawStoneAtGridPosition(p5, col, row, colorName, 0.5, {
+      strokeColor,
+      strokeWeight,
+    });
+  }
+
+  /**
+   * @param {import("p5")} p5
    * @param {number} col
    * @param {number} row
    * @param {string} colorName
    * @param {number} alpha
+   * @param {{
+   *   strokeColor?: string,
+   *   strokeWeight?: number,
+   * }} options
    */
-  drawStoneAtGridPosition(p5, col, row, colorName, alpha = 1) {
+  drawStoneAtGridPosition(p5, col, row, colorName, alpha = 1, options = {}) {
     const { x, y } = this.board.gridToWorld(p5, col, row);
     const colorValue = STONE_COLORS[colorName] ?? "#000000";
+
+    const strokeColorValue = options.strokeColor ?? "#000000";
+    const strokeWeight = options.strokeWeight ?? 1.5;
 
     p5.push();
     {
       const stoneColor = p5.color(colorValue);
       stoneColor.setAlpha(255 * alpha);
 
-      const strokeColor = p5.color("#000000");
+      const strokeColor = p5.color(strokeColorValue);
       strokeColor.setAlpha(255 * alpha);
 
       p5.stroke(strokeColor);
-      p5.strokeWeight(1.5);
+      p5.strokeWeight(strokeWeight);
       p5.fill(stoneColor);
       p5.circle(x, y, STONE_SIZE);
 
-      // Extra outline for white stones.
       if (colorName === "white") {
         p5.noFill();
         p5.stroke(strokeColor);
-        p5.strokeWeight(2);
+        p5.strokeWeight(Math.max(strokeWeight, 2));
         p5.circle(x, y, STONE_SIZE);
       }
     }
@@ -184,6 +226,19 @@ export default class GameScene extends BaseScene {
       p5.mouseY,
       16,
     );
+
+    this.hoverMoveResult = null;
+
+    if (!this.hoveredIntersection) return;
+
+    const { col, row } = this.hoveredIntersection;
+    const colorName = this.stoneSelector.getSelectedColorName();
+
+    this.hoverMoveResult = this.goBoardState.getLegalMovePreview(
+      col,
+      row,
+      colorName,
+    );
   }
 
   /**
@@ -201,6 +256,10 @@ export default class GameScene extends BaseScene {
     this.historyButtonGroup.mousePressed(p5, event);
   }
 
+  /**
+   * @param {import("p5")} p5
+   * @param {MouseEvent} event
+   */
   mouseReleased(p5, event) {
     const historyHandledClick = this.historyButtonGroup.mouseReleased(
       p5,
@@ -219,14 +278,18 @@ export default class GameScene extends BaseScene {
       return;
     }
 
-    const intersection = this.board.worldToGrid(p5, p5.mouseX, p5.mouseY, 16);
+    this.updateHoveredIntersection(p5);
 
-    if (!intersection) {
-      this.hoveredIntersection = null;
+    if (!this.hoveredIntersection) {
       return;
     }
 
-    const { col, row } = intersection;
+    if (!this.hoverMoveResult || !this.hoverMoveResult.legal) {
+      console.log("Illegal move:", this.hoverMoveResult?.reason);
+      return;
+    }
+
+    const { col, row } = this.hoveredIntersection;
     const colorName = this.stoneSelector.getSelectedColorName();
 
     this.placeStone(col, row, colorName);
@@ -237,9 +300,17 @@ export default class GameScene extends BaseScene {
    * @param {number} col
    * @param {number} row
    * @param {string} colorName
+   * @returns {boolean}
    */
   placeStone(col, row, colorName) {
-    return this.goBoardState.placeStone(col, row, colorName);
+    const moveResult = this.goBoardState.placeLegalStone(col, row, colorName);
+
+    if (!moveResult.legal) {
+      console.log("Illegal move:", moveResult.reason);
+      return false;
+    }
+
+    return true;
   }
 
   /**
