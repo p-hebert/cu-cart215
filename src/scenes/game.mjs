@@ -4,6 +4,8 @@ import StoneSelector from "src/components/stone-selector.mjs";
 import GoBoardState from "src/engine/go-board-state.mjs";
 import { BaseScene } from "src/p5/scene.mjs";
 
+import ScoreTracker from "src/components/score-tracker.mjs";
+
 const STONE_COLORS = {
   black: "#000000",
   white: "#ffffff",
@@ -27,6 +29,7 @@ export default class GameScene extends BaseScene {
     super();
 
     this.board = null;
+    this.scoreTracker = null;
     this.stoneSelector = null;
 
     // boardState[row][col] = null | "black" | "white" | "blood-red" | "midnight-blue"
@@ -59,6 +62,14 @@ export default class GameScene extends BaseScene {
     this.goBoardState = new GoBoardState({
       boardSize: this.board.boardSize,
     });
+
+    this.scoreTracker = new ScoreTracker({
+      board: this.board,
+      boardState: this.goBoardState,
+      offsetX: 44,
+      alignY: "center",
+    });
+    this.scoreTracker.setup(p5);
 
     this.historyButtonGroup = new HistoryButtonGroup({
       board: this.board,
@@ -102,6 +113,7 @@ export default class GameScene extends BaseScene {
     this.drawCapturePreview(p5);
     this.drawGhostStone(p5);
 
+    this.scoreTracker.draw(p5);
     this.historyButtonGroup.draw(p5);
     this.stoneSelector.draw(p5);
   }
