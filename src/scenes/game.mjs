@@ -1,4 +1,5 @@
 import Board from "src/components/board.mjs";
+import StoneSelector from "src/components/stone-selector.mjs";
 import { BaseScene } from "src/p5/scene.mjs";
 // import FontBook from "src/utils/fonts.mjs";
 
@@ -13,6 +14,8 @@ export default class GameScene extends BaseScene {
 
   constructor({} = {}) {
     super();
+    this.board = null;
+    this.stones = null;
     this._setupped = false;
   }
 
@@ -26,7 +29,24 @@ export default class GameScene extends BaseScene {
     if (this._setupped) {
       return;
     }
-    this.board = new Board();
+
+    this.board = new Board({
+      boardSize: 7,
+      cellSize: 70,
+      margin: 100,
+      alignment: ["center", "center"],
+    });
+    this.board.setup(p5);
+
+    this.stoneSelector = new StoneSelector({
+      board: this.board,
+      selectedColorName: "black",
+      offsetY: 44,
+    });
+    this.stoneSelector.setup(p5);
+
+    this.stones = [];
+
     this._setupped = true;
   }
 
@@ -43,31 +63,50 @@ export default class GameScene extends BaseScene {
    * @param {import('p5')} p5
    */
   draw(p5) {
-    p5.background("black");
+    p5.background("#ecf4f7");
     if (!this._setupped) {
       return;
     }
 
     this.board.draw(p5);
+
+    for (const stone of this.stones) {
+      stone.draw(p5);
+    }
+
+    this.stoneSelector.draw(p5);
   }
 
   /**
    * @param {import('p5')} p5
    * @param {MouseEvent} event
    */
-  mouseMoved(p5, event) {}
+  mouseMoved(p5, event) {
+    this.stoneSelector.mouseMoved(p5, event);
+  }
 
   /**
    * @param {import('p5')} p5
    * @param {MouseEvent} event
    */
-  mousePressed(p5, event) {}
+  mousePressed(p5, event) {
+    this.stoneSelector.mousePressed(p5, event);
+  }
 
   /**
    * @param {import('p5')} p5
    * @param {MouseEvent} event
    */
-  mouseReleased(p5, event) {}
+  mouseReleased(p5, event) {
+    const selectorHandledClick = this.stoneSelector.mouseReleased(p5, event);
+
+    if (selectorHandledClick) return;
+
+    // Otherwise handle board click / stone placement.
+    const colorName = this.stoneSelector.getSelectedColorName();
+
+    // place stone using colorName
+  }
 
   /**
    * @param {import('p5')} p5
