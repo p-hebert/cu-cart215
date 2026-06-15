@@ -1,3 +1,6 @@
+import CollapseRulesHelper, {
+  DEFAULT_COLLAPSE_RINGS,
+} from "src/engine/collapse-rules-helper.mjs";
 import ScoreCalculator, { STONE_COLORS } from "src/engine/score-calculator.mjs";
 import { IP5Lifecycle } from "src/p5/interfaces.mjs";
 
@@ -10,11 +13,18 @@ export default class ScoreTracker extends IP5Lifecycle {
    *   board: Board,
    *   boardState: GoBoardState,
    *   colors?: Array<{ name: string, value: string }>,
+   *   rings?: import("src/engine/collapse-rules-helper.mjs").CollapseRingRule[],
    *   offsetX?: number,
-   *   alignY?: "top" | "center",
-   *   rowGap?: number,
+   *   offsetY?: number,
    *   stoneSize?: number,
-   *   textOffsetX?: number,
+   *   rowHeight?: number,
+   *   fontSize?: number,
+   *   colWidths?: {
+   *     color?: number,
+   *     score?: number,
+   *     inner?: number,
+   *     outer?: number,
+   *   },
    * }} options
    */
   constructor(options) {
@@ -25,14 +35,41 @@ export default class ScoreTracker extends IP5Lifecycle {
 
     this.colors = options.colors ?? STONE_COLORS;
 
-    this.offsetX = options.offsetX ?? 42;
-    this.alignY = options.alignY ?? "center";
-    this.rowGap = options.rowGap ?? 18;
-    this.stoneSize = options.stoneSize ?? 28;
-    this.textOffsetX = options.textOffsetX ?? 26;
+    // Rename middle collapse ring label to "Outer" for table display.
+    this.rings =
+      options.rings ??
+      DEFAULT_COLLAPSE_RINGS.map((ring) => {
+        if (ring.name === "middle") {
+          return {
+            ...ring,
+            label: "Outer",
+          };
+        }
+
+        return ring;
+      });
+
+    this.offsetX = options.offsetX ?? 44;
+    this.offsetY = options.offsetY ?? 32;
+
+    this.stoneSize = options.stoneSize ?? 22;
+    this.rowHeight = options.rowHeight ?? 28;
+    this.fontSize = options.fontSize ?? 16;
+
+    this.colWidths = {
+      color: options.colWidths?.color ?? 72,
+      score: options.colWidths?.score ?? 64,
+      inner: options.colWidths?.inner ?? 72,
+      outer: options.colWidths?.outer ?? 72,
+    };
 
     this.scoreCalculator = new ScoreCalculator({
       colors: this.colors,
+    });
+
+    this.collapseRulesHelper = new CollapseRulesHelper({
+      colors: this.colors,
+      rings: this.rings,
     });
   }
 
@@ -45,28 +82,41 @@ export default class ScoreTracker extends IP5Lifecycle {
    * @param {import("p5")} p5
    */
   draw(p5) {
-    const scores = this.scoreCalculator.calculateScores(
-      this.boardState.getBoard(),
-    );
+    const board = this.boardState.getBoard();
+    const scores = this.scoreCalculator.calculateScores(board);
+    const collapseStatus = this.collapseRulesHelper.getCollapseStatus(board);
+
+    const innerStatus = collapseStatus[0];
+    const outerStatus = collapseStatus[1];
 
     const { x, y } = this.getPosition(p5);
 
     p5.push();
     {
+      p5.textFont("monospace");
+      p5.textSize(this.fontSize);
       p5.textAlign(p5.LEFT, p5.CENTER);
-      p5.textSize(20);
       p5.textStyle(p5.BOLD);
+      p5.noStroke();
+
+      this.drawHeaderRows(p5, x, y);
+
+      p5.textStyle(p5.NORMAL);
+
+      const firstDataRowY = y + this.rowHeight * 2;
 
       for (let i = 0; i < this.colors.length; i++) {
         const color = this.colors[i];
-        const rowY = y + i * (this.stoneSize + this.rowGap);
+        const rowY = firstDataRowY + i * this.rowHeight;
 
-        this.drawStoneIcon(p5, x, rowY, color);
-        this.drawScoreText(
+        this.drawDataRow(
           p5,
-          x + this.stoneSize / 2 + this.textOffsetX,
+          x,
           rowY,
+          color,
           scores[color.name],
+          innerStatus.colors[color.name],
+          outerStatus.colors[color.name],
         );
       }
     }
@@ -81,25 +131,106 @@ export default class ScoreTracker extends IP5Lifecycle {
     const boardOrigin = this.board.getOrigin(p5);
     const boardPixelSize = this.board.getBoardPixelSize();
 
-    const totalHeight =
-      this.colors.length * this.stoneSize +
-      (this.colors.length - 1) * this.rowGap;
+    return {
+      x: boardOrigin.x + boardPixelSize + this.offsetX,
+      y: boardOrigin.y + this.offsetY,
+    };
+  }
 
-    const x = boardOrigin.x + boardPixelSize + this.offsetX;
+  /**
+   * @param {import("p5")} p5
+   * @param {number} x
+   * @param {number} y
+   */
+  drawHeaderRows(p5, x, y) {
+    const colorX = x;
+    const scoreX = colorX + this.colWidths.color;
+    const collapseX = scoreX + this.colWidths.score;
+    const innerX = collapseX;
+    const outerX = innerX + this.colWidths.inner;
 
-    let y = boardOrigin.y;
+    p5.fill(0);
 
-    if (this.alignY === "center") {
-      y =
-        boardOrigin.y +
-        boardPixelSize / 2 -
-        totalHeight / 2 +
-        this.stoneSize / 2;
-    } else {
-      y = boardOrigin.y + this.stoneSize / 2;
-    }
+    // Header row 1
+    p5.text("Color", colorX, y);
+    p5.text("Score", scoreX, y);
+    p5.text("Collapse", collapseX, y);
 
-    return { x, y };
+    // Header row 2
+    const y2 = y + this.rowHeight;
+    p5.text("Inner", innerX, y2);
+    p5.text("Outer", outerX, y2);
+  }
+
+  /**
+   * @param {import("p5")} p5
+   * @param {number} x
+   * @param {number} y
+   * @param {{ name: string, value: string }} color
+   * @param {number} score
+   * @param {{
+   *   count: number,
+   *   overloaded: boolean,
+   *   immediateCollapse: boolean,
+   * }} innerStatus
+   * @param {{
+   *   count: number,
+   *   overloaded: boolean,
+   *   immediateCollapse: boolean,
+   * }} outerStatus
+   */
+  drawDataRow(p5, x, y, color, score, innerStatus, outerStatus) {
+    const colorX = x;
+    const scoreX = colorX + this.colWidths.color;
+    const innerX = scoreX + this.colWidths.score;
+    const outerX = innerX + this.colWidths.inner;
+
+    this.drawStoneIcon(p5, colorX + this.stoneSize / 2, y, color);
+
+    p5.noStroke();
+
+    p5.fill(0);
+    p5.text(String(score), scoreX, y);
+
+    const innerRing = this.rings[0];
+    const outerRing = this.rings[1];
+
+    p5.fill(this.getCollapseCounterColor(innerStatus));
+    p5.text(
+      this.formatCollapseCounter(innerStatus.count, innerRing),
+      innerX,
+      y,
+    );
+
+    p5.fill(this.getCollapseCounterColor(outerStatus));
+    p5.text(
+      this.formatCollapseCounter(outerStatus.count, outerRing),
+      outerX,
+      y,
+    );
+  }
+
+  /**
+   * @param {number} count
+   * @param {import("src/engine/collapse-rules-helper.mjs").CollapseRingRule} ring
+   * @returns {string}
+   */
+  formatCollapseCounter(count, ring) {
+    const safeLimit = ring.overloadAt - 1;
+    return `${count}/${safeLimit}`;
+  }
+
+  /**
+   * @param {{
+   *   overloaded: boolean,
+   *   immediateCollapse: boolean,
+   * }} status
+   * @returns {string}
+   */
+  getCollapseCounterColor(status) {
+    if (status.immediateCollapse) return "#f00";
+    if (status.overloaded) return "#c76b00";
+    return "#000";
   }
 
   /**
@@ -112,33 +243,41 @@ export default class ScoreTracker extends IP5Lifecycle {
     p5.push();
     {
       p5.stroke(0);
-      p5.strokeWeight(1.5);
+      p5.strokeWeight(1.25);
       p5.fill(color.value);
       p5.circle(x, y, this.stoneSize);
 
       if (color.name === "white") {
         p5.noFill();
         p5.stroke(0);
-        p5.strokeWeight(2);
+        p5.strokeWeight(1.75);
         p5.circle(x, y, this.stoneSize);
       }
     }
     p5.pop();
   }
 
-  /**
-   * @param {import("p5")} p5
-   * @param {number} x
-   * @param {number} y
-   * @param {number} score
-   */
-  drawScoreText(p5, x, y, score) {
-    p5.push();
-    {
-      p5.noStroke();
-      p5.fill(0);
-      p5.text(String(score), x, y);
-    }
-    p5.pop();
+  hasImmediateCollapse() {
+    return this.collapseRulesHelper.hasImmediateCollapse(
+      this.boardState.getBoard(),
+    );
+  }
+
+  hasEndgameCollapse() {
+    return this.collapseRulesHelper.hasEndgameCollapse(
+      this.boardState.getBoard(),
+    );
+  }
+
+  getImmediateCollapseEntries() {
+    return this.collapseRulesHelper.getImmediateCollapseEntries(
+      this.boardState.getBoard(),
+    );
+  }
+
+  getEndgameCollapseEntries() {
+    return this.collapseRulesHelper.getEndgameCollapseEntries(
+      this.boardState.getBoard(),
+    );
   }
 }

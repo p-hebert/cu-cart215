@@ -67,7 +67,58 @@ export default class GameScene extends BaseScene {
       board: this.board,
       boardState: this.goBoardState,
       offsetX: 44,
-      alignY: "center",
+      offsetY: 32,
+
+      // Playtest knobs
+      rings: [
+        {
+          name: "inner",
+          label: "Inner",
+          positions: [
+            [2, 2],
+            [3, 2],
+            [4, 2],
+            [2, 3],
+            [3, 3],
+            [4, 3],
+            [2, 4],
+            [3, 4],
+            [4, 4],
+          ].map(([col, row]) => ({ col, row })),
+          overloadAt: 4,
+          immediateCollapseAt: 5,
+          endgameCollapseAt: 4,
+        },
+        {
+          name: "outer",
+          label: "Outer",
+          positions: [
+            [1, 1],
+            [2, 1],
+            [3, 1],
+            [4, 1],
+            [5, 1],
+
+            [1, 2],
+            [5, 2],
+
+            [1, 3],
+            [5, 3],
+
+            [1, 4],
+            [5, 4],
+
+            [1, 5],
+            [2, 5],
+            [3, 5],
+            [4, 5],
+            [5, 5],
+          ].map(([col, row]) => ({ col, row })),
+          overloadAt: 8,
+          immediateCollapseAt: 9,
+          endgameCollapseAt: 8,
+        },
+      ],
     });
     this.scoreTracker.setup(p5);
 
