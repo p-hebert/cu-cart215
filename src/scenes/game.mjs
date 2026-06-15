@@ -1,3 +1,4 @@
+import Board from "src/components/board.mjs";
 import { BaseScene } from "src/p5/scene.mjs";
 // import FontBook from "src/utils/fonts.mjs";
 
@@ -25,6 +26,7 @@ export default class GameScene extends BaseScene {
     if (this._setupped) {
       return;
     }
+    this.board = new Board();
     this._setupped = true;
   }
 
@@ -45,11 +47,8 @@ export default class GameScene extends BaseScene {
     if (!this._setupped) {
       return;
     }
-    p5.push();
-    p5.fill("#fff");
-    p5.textAlign(p5.CENTER, p5.CENTER);
-    p5.text("GAME", p5.width / 2, p5.height / 2);
-    p5.pop();
+
+    this.board.draw(p5);
   }
 
   /**
