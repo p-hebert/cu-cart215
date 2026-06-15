@@ -14,6 +14,8 @@ export default class HistoryButtonGroup extends IP5Lifecycle {
    *   gap?: number,
    *   offsetY?: number,
    *   align?: "left" | "center" | "right",
+   *   onUndo?: (() => void) | null,
+   *   onRedo?: (() => void) | null,
    * }} options
    */
   constructor(options) {
@@ -30,6 +32,8 @@ export default class HistoryButtonGroup extends IP5Lifecycle {
 
     this.backButton = null;
     this.forwardButton = null;
+    this.onUndo = options.onUndo ?? null;
+    this.onRedo = options.onRedo ?? null;
   }
 
   /**
@@ -62,7 +66,8 @@ export default class HistoryButtonGroup extends IP5Lifecycle {
       label: "←",
       styles,
       onClick: () => {
-        this.boardState.undo();
+        const changed = this.boardState.undo();
+        if (changed) this.onUndo?.();
       },
     });
 
@@ -74,7 +79,8 @@ export default class HistoryButtonGroup extends IP5Lifecycle {
       label: "→",
       styles,
       onClick: () => {
-        this.boardState.redo();
+        const changed = this.boardState.redo();
+        if (changed) this.onRedo?.();
       },
     });
   }

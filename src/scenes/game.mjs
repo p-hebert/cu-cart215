@@ -1,10 +1,10 @@
 import Board from "src/components/board.mjs";
+import CountdownTimer from "src/components/countdown-timer.mjs";
 import HistoryButtonGroup from "src/components/history-button-group.mjs";
+import ScoreTracker from "src/components/score-tracker.mjs";
 import StoneSelector from "src/components/stone-selector.mjs";
 import GoBoardState from "src/engine/go-board-state.mjs";
 import { BaseScene } from "src/p5/scene.mjs";
-
-import ScoreTracker from "src/components/score-tracker.mjs";
 
 const STONE_COLORS = {
   black: "#000000",
@@ -29,16 +29,17 @@ export default class GameScene extends BaseScene {
     super();
 
     this.board = null;
-    this.scoreTracker = null;
-    this.stoneSelector = null;
 
     // boardState[row][col] = null | "black" | "white" | "blood-red" | "midnight-blue"
     this.boardState = null;
-
-    this.historyButtonGroup = null;
     // { col, row } | null
     this.hoveredIntersection = null;
     this.hoverMoveResult = null;
+
+    this.countdownTimer = null;
+    this.scoreTracker = null;
+    this.stoneSelector = null;
+    this.historyButtonGroup = null;
 
     this._setupped = false;
   }
@@ -62,6 +63,14 @@ export default class GameScene extends BaseScene {
     this.goBoardState = new GoBoardState({
       boardSize: this.board.boardSize,
     });
+
+    this.countdownTimer = new CountdownTimer({
+      board: this.board,
+      durationSeconds: 10 * 60,
+      offsetY: 44,
+      fontSize: 32,
+    });
+    this.countdownTimer.setup(p5);
 
     this.scoreTracker = new ScoreTracker({
       board: this.board,
@@ -122,20 +131,27 @@ export default class GameScene extends BaseScene {
     });
     this.scoreTracker.setup(p5);
 
-    this.historyButtonGroup = new HistoryButtonGroup({
-      board: this.board,
-      boardState: this.goBoardState,
-      offsetY: 30,
-      align: "left",
-    });
-    this.historyButtonGroup.setup(p5);
-
     this.stoneSelector = new StoneSelector({
       board: this.board,
       selectedColorName: "black",
       offsetY: 44,
+      enabled: false,
     });
     this.stoneSelector.setup(p5);
+
+    this.historyButtonGroup = new HistoryButtonGroup({
+      board: this.board,
+      boardState: this.goBoardState,
+      offsetY: 44,
+      align: "left",
+      onUndo: () => {
+        this.stoneSelector.selectPreviousColor();
+      },
+      onRedo: () => {
+        this.stoneSelector.selectNextColor();
+      },
+    });
+    this.historyButtonGroup.setup(p5);
 
     this._setupped = true;
   }
@@ -164,6 +180,7 @@ export default class GameScene extends BaseScene {
     this.drawCapturePreview(p5);
     this.drawGhostStone(p5);
 
+    this.countdownTimer.draw(p5);
     this.scoreTracker.draw(p5);
     this.historyButtonGroup.draw(p5);
     this.stoneSelector.draw(p5);
@@ -371,6 +388,13 @@ export default class GameScene extends BaseScene {
     if (!moveResult.legal) {
       console.log("Illegal move:", moveResult.reason);
       return false;
+    }
+
+    this.stoneSelector.selectNextColor();
+
+    if (this.scoreTracker.hasImmediateCollapse()) {
+      console.log("COLLAPSE: all players lose");
+      console.log(this.scoreTracker.getImmediateCollapseEntries());
     }
 
     return true;
