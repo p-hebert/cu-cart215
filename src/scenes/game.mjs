@@ -94,9 +94,9 @@ export default class GameScene extends BaseScene {
             [3, 4],
             [4, 4],
           ].map(([col, row]) => ({ col, row })),
-          overloadAt: 4,
-          immediateCollapseAt: 5,
-          endgameCollapseAt: 4,
+          overloadAt: 3,
+          immediateCollapseAt: 4,
+          endgameCollapseAt: 3,
         },
         {
           name: "outer",
@@ -123,9 +123,9 @@ export default class GameScene extends BaseScene {
             [4, 5],
             [5, 5],
           ].map(([col, row]) => ({ col, row })),
-          overloadAt: 8,
-          immediateCollapseAt: 9,
-          endgameCollapseAt: 8,
+          overloadAt: 7,
+          immediateCollapseAt: 8,
+          endgameCollapseAt: 7,
         },
       ],
     });
@@ -134,8 +134,19 @@ export default class GameScene extends BaseScene {
     this.stoneSelector = new StoneSelector({
       board: this.board,
       selectedColorName: "black",
-      offsetY: 44,
       enabled: false,
+
+      actionEnabledState: {
+        shield: true,
+        scar: false,
+        spread: true,
+        switch: false,
+        assimilate: true,
+      },
+
+      onActionChange: (actionKey) => {
+        console.log("Selected action:", actionKey);
+      },
     });
     this.stoneSelector.setup(p5);
 

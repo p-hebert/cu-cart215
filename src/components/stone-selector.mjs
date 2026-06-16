@@ -1,3 +1,4 @@
+import ActionButton from "src/components/action-button.mjs";
 import StoneButton from "src/components/stone-button.mjs";
 import { IP5Lifecycle } from "src/p5/interfaces.mjs";
 
@@ -21,6 +22,18 @@ import { IP5Lifecycle } from "src/p5/interfaces.mjs";
  */
 
 /**
+ * @typedef {Object} StoneSelectorAction
+ * @property {string} key
+ * @property {string} label
+ * @property {string} name
+ * @property {string} description
+ */
+
+/**
+ * @typedef {Record<string, boolean>} ActionEnabledState
+ */
+
+/**
  * @typedef {Object} StoneSelectorOptions
  * @property {Board} board
  * @property {StoneColor[]} [colors]
@@ -29,6 +42,13 @@ import { IP5Lifecycle } from "src/p5/interfaces.mjs";
  * @property {number} [stoneSize]
  * @property {number} [gap]
  * @property {number} [offsetY]
+ * @property {StoneSelectorAction[]} [actions]
+ * @property {ActionEnabledState} [actionEnabledState]
+ * @property {string | null} [selectedActionKey]
+ * @property {number} [actionTextSize]
+ * @property {number} [actionGap]
+ * @property {number} [actionOffsetY]
+ * @property {((actionKey: string | null) => void) | null} [onActionChange]
  * @property {StoneSelectorChangeHandler | null} [onChange]
  */
 
@@ -40,6 +60,8 @@ export default class StoneSelector extends IP5Lifecycle {
     super();
 
     this.board = options.board;
+    // New: enabled = clickable, disabled = visual-only / externally controlled.
+    this.enabled = options.enabled ?? true;
 
     this.colors = options.colors ?? [
       { name: "black", value: "#000000" },
@@ -50,10 +72,62 @@ export default class StoneSelector extends IP5Lifecycle {
 
     this.selectedColorName = options.selectedColorName ?? this.colors[0].name;
 
-    // New: enabled = clickable, disabled = visual-only / externally controlled.
-    this.enabled = options.enabled ?? true;
+    this.actions = options.actions ?? [
+      {
+        key: "shield",
+        label: "🛡️",
+        name: "Shield",
+        description:
+          "Protect one of your stones until the end of your next turn",
+      },
+      {
+        key: "scar",
+        label: "⚡",
+        name: "Scar",
+        description:
+          "Replace a higher-scoring player’s stone with a temporary hostile blocker",
+      },
+      {
+        key: "spread",
+        label: "🦠",
+        name: "Spread",
+        description: "Place two stones on 1-point or 3-point intersections",
+      },
+      {
+        key: "switch",
+        label: "🔀",
+        name: "Switch",
+        description:
+          "Swap one of your stones with a higher-scoring player’s non-center stone",
+      },
+      {
+        key: "assimilate",
+        label: "🏴‍☠️",
+        name: "Assimilate",
+        description:
+          "Convert a higher-scoring player’s stone adjacent to two of yours",
+      },
+    ];
 
-    this.stoneSize = options.stoneSize ?? 36;
+    this.actionEnabledState = options.actionEnabledState ?? {
+      shield: true,
+      scar: true,
+      spread: true,
+      switch: true,
+      assimilate: true,
+    };
+
+    this.selectedActionKey = options.selectedActionKey ?? null;
+
+    this.actionTextSize = options.actionTextSize ?? 18;
+    this.actionGap = options.actionGap ?? 18;
+    this.actionOffsetY = options.actionOffsetY ?? 38;
+
+    this.onActionChange = options.onActionChange ?? null;
+
+    this.actionButtons = [];
+
+    this.stoneSize = options.stoneSize ?? 28;
     this.gap = options.gap ?? 16;
     this.offsetY = options.offsetY ?? 42;
 
@@ -67,7 +141,9 @@ export default class StoneSelector extends IP5Lifecycle {
    */
   setup(p5) {
     this.createButtons();
+    this.createActionButtons();
     this.updateButtonLayout(p5);
+    this.updateActionButtonLayout(p5);
   }
 
   createButtons() {
@@ -87,15 +163,44 @@ export default class StoneSelector extends IP5Lifecycle {
     });
   }
 
+  createActionButtons() {
+    this.actionButtons = this.actions.map((action) => {
+      return new ActionButton({
+        x: 0,
+        y: 0,
+        key: action.key,
+        label: action.label,
+        name: action.name,
+        description: action.description,
+        enabled: this.isActionEnabled(action.key),
+        selected: this.selectedActionKey === action.key,
+        textSize: this.actionTextSize,
+        hitSize: this.actionTextSize + 12,
+        hoverDelayMillis: 250,
+        onClick: (actionKey) => {
+          this.toggleAction(actionKey);
+        },
+      });
+    });
+  }
+
+  /**
+   * @param {import("p5")} p5
+   */
   /**
    * @param {import("p5")} p5
    */
   draw(p5) {
     this.updateButtonLayout(p5);
+    this.updateActionButtonLayout(p5);
 
     for (const button of this.buttons) {
       button.selected = button.colorName === this.selectedColorName;
       button.draw(p5);
+    }
+
+    for (const actionButton of this.actionButtons) {
+      actionButton.draw(p5);
     }
   }
 
@@ -121,6 +226,110 @@ export default class StoneSelector extends IP5Lifecycle {
       button.size = this.stoneSize;
       button.selected = button.colorName === this.selectedColorName;
     }
+  }
+
+  /**
+   * @param {import("p5")} p5
+   */
+  updateActionButtonLayout(p5) {
+    if (this.buttons.length === 0) return;
+
+    const firstButton = this.buttons[0];
+    const lastButton = this.buttons[this.buttons.length - 1];
+
+    const centerX = (firstButton.x + lastButton.x) / 2;
+    const y = firstButton.y + firstButton.size / 2 + this.actionOffsetY;
+
+    const totalWidth =
+      this.actions.length * this.actionTextSize +
+      (this.actions.length - 1) * this.actionGap;
+
+    const startX = centerX - totalWidth / 2 + this.actionTextSize / 2;
+
+    for (let i = 0; i < this.actionButtons.length; i++) {
+      const actionButton = this.actionButtons[i];
+      const action = this.actions[i];
+
+      actionButton.x = startX + i * (this.actionTextSize + this.actionGap);
+      actionButton.y = y;
+      actionButton.textSize = this.actionTextSize;
+      actionButton.hitSize = this.actionTextSize + 12;
+
+      actionButton.enabled = this.isActionEnabled(action.key);
+      actionButton.selected = this.selectedActionKey === action.key;
+    }
+  }
+
+  /**
+   * @param {string} actionKey
+   * @returns {boolean}
+   */
+  isActionEnabled(actionKey) {
+    return this.actionEnabledState[actionKey] ?? false;
+  }
+
+  /**
+   * @param {string} actionKey
+   * @param {boolean} enabled
+   */
+  setActionEnabled(actionKey, enabled) {
+    this.actionEnabledState[actionKey] = enabled;
+
+    if (!enabled && this.selectedActionKey === actionKey) {
+      this.selectedActionKey = null;
+      this.onActionChange?.(null);
+    }
+  }
+
+  /**
+   * @param {ActionEnabledState} actionEnabledState
+   */
+  setActionEnabledState(actionEnabledState) {
+    this.actionEnabledState = {
+      ...this.actionEnabledState,
+      ...actionEnabledState,
+    };
+
+    if (
+      this.selectedActionKey !== null &&
+      !this.isActionEnabled(this.selectedActionKey)
+    ) {
+      this.selectedActionKey = null;
+      this.onActionChange?.(null);
+    }
+  }
+
+  /**
+   * @param {string | null} actionKey
+   */
+  setSelectedActionKey(actionKey) {
+    if (actionKey === null) {
+      this.selectedActionKey = null;
+      this.onActionChange?.(null);
+      return;
+    }
+
+    if (!this.isActionEnabled(actionKey)) return;
+
+    this.selectedActionKey = actionKey;
+    this.onActionChange?.(actionKey);
+  }
+
+  /**
+   * @param {string} actionKey
+   */
+  toggleAction(actionKey) {
+    if (!this.isActionEnabled(actionKey)) return;
+
+    if (this.selectedActionKey === actionKey) {
+      this.setSelectedActionKey(null);
+    } else {
+      this.setSelectedActionKey(actionKey);
+    }
+  }
+
+  getSelectedActionKey() {
+    return this.selectedActionKey;
   }
 
   /**
@@ -209,11 +418,30 @@ export default class StoneSelector extends IP5Lifecycle {
    */
   mouseMoved(p5, event) {
     this.updateButtonLayout(p5);
+    this.updateActionButtonLayout(p5);
 
-    if (!this.enabled) return;
+    let handCursorRequested = false;
 
-    for (const button of this.buttons) {
-      button.mouseMoved(p5, event);
+    if (this.enabled) {
+      for (const button of this.buttons) {
+        button.mouseMoved(p5, event);
+
+        if (button.hovered) {
+          handCursorRequested = true;
+        }
+      }
+    }
+
+    for (const actionButton of this.actionButtons) {
+      actionButton.mouseMoved(p5, event);
+
+      if (actionButton.enabled && actionButton.hovered) {
+        handCursorRequested = true;
+      }
+    }
+
+    if (!handCursorRequested) {
+      p5.cursor(p5.ARROW);
     }
   }
 
@@ -223,11 +451,16 @@ export default class StoneSelector extends IP5Lifecycle {
    */
   mousePressed(p5, event) {
     this.updateButtonLayout(p5);
+    this.updateActionButtonLayout(p5);
 
-    if (!this.enabled) return;
+    if (this.enabled) {
+      for (const button of this.buttons) {
+        button.mousePressed(p5, event);
+      }
+    }
 
-    for (const button of this.buttons) {
-      button.mousePressed(p5, event);
+    for (const actionButton of this.actionButtons) {
+      actionButton.mousePressed(p5, event);
     }
   }
 
@@ -238,14 +471,24 @@ export default class StoneSelector extends IP5Lifecycle {
    */
   mouseReleased(p5, event) {
     this.updateButtonLayout(p5);
+    this.updateActionButtonLayout(p5);
 
-    if (!this.enabled) return false;
+    if (this.enabled) {
+      for (const button of this.buttons) {
+        const clicked = button.mouseReleased(p5, event);
 
-    for (const button of this.buttons) {
-      const clicked = button.mouseReleased(p5, event);
+        if (clicked) {
+          button.click(p5, event);
+          return true;
+        }
+      }
+    }
+
+    for (const actionButton of this.actionButtons) {
+      const clicked = actionButton.mouseReleased(p5, event);
 
       if (clicked) {
-        button.click(p5, event);
+        actionButton.click();
         return true;
       }
     }
