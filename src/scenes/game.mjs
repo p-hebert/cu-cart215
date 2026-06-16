@@ -1,6 +1,7 @@
 import Board from "src/components/board.mjs";
 import CountdownTimer from "src/components/countdown-timer.mjs";
 import HistoryButtonGroup from "src/components/history-button-group.mjs";
+import NotificationToast from "src/components/notification-toast.mjs";
 import ScoreTracker from "src/components/score-tracker.mjs";
 import StoneSelector from "src/components/stone-selector.mjs";
 import ActionAvailabilityHelper from "src/engine/action-availability-helper.mjs";
@@ -50,7 +51,9 @@ export default class GameScene extends BaseScene {
       "blood-red": false,
       "midnight-blue": false,
     };
+
     this.historyButtonGroup = null;
+    this.notificationToast = null;
 
     this._setupped = false;
   }
@@ -171,6 +174,12 @@ export default class GameScene extends BaseScene {
     });
     this.countdownTimer.setup(p5);
 
+    this.notificationToast = new NotificationToast({
+      durationMillis: 2400,
+      offsetY: 18,
+    });
+    this.notificationToast.setup(p5);
+
     this._setupped = true;
   }
 
@@ -209,6 +218,7 @@ export default class GameScene extends BaseScene {
     this.stoneSelector.draw(p5);
 
     this.historyButtonGroup.draw(p5);
+    this.notificationToast.draw(p5);
   }
 
   /**
@@ -455,7 +465,9 @@ export default class GameScene extends BaseScene {
     }
 
     if (!this.hoverMoveResult || !this.hoverMoveResult.legal) {
-      console.log("Illegal move:", this.hoverMoveResult?.reason);
+      this.notificationToast.show(
+        `Illegal move: ${this.hoverMoveResult?.reason}`,
+      );
       return;
     }
 
@@ -473,7 +485,7 @@ export default class GameScene extends BaseScene {
     const moveResult = this.gameState.placeLegalStone(col, row, colorName);
 
     if (!moveResult.legal) {
-      console.log("Illegal move:", moveResult.reason);
+      this.notificationToast.show(`Illegal move: ${moveResult?.reason}`);
       return false;
     }
 
@@ -483,6 +495,7 @@ export default class GameScene extends BaseScene {
     if (this.scoreTracker.hasImmediateCollapse()) {
       console.log("COLLAPSE: all players lose");
       console.log(this.scoreTracker.getImmediateCollapseEntries());
+      this.notificationToast.show("COLLAPSE: all players lose");
     }
 
     return true;
@@ -499,7 +512,7 @@ export default class GameScene extends BaseScene {
     });
 
     if (!result.legal) {
-      console.log("Illegal action:", result.reason);
+      this.notificationToast.show(`Illegal action: ${result.reason}`);
       return false;
     }
 

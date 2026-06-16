@@ -8,13 +8,15 @@ import { POINT_SHEET } from "src/engine/points.mjs";
  * @typedef {import("src/engine/stone-data.mjs").default | null} BoardCell
  */
 
-export const STONE_COLORS = [
+export const PLAYER_COLORS = [
   { name: "black", value: "#000000" },
   { name: "white", value: "#ffffff" },
   { name: "blood-red", value: "#8a0303" },
   { name: "midnight-blue", value: "#191970" },
-  { name: "scar", value: "#808080" },
 ];
+
+// Temporary alias if other files already import STONE_COLORS
+export const STONE_COLORS = PLAYER_COLORS;
 
 export default class ScoreCalculator {
   /**
@@ -39,6 +41,7 @@ export default class ScoreCalculator {
       const colorName = board?.[row]?.[col]?.colorName ?? null;
 
       if (colorName === null) continue;
+      // Important: skip scar and any future non-player stone types.
       if (!(colorName in scores)) continue;
 
       scores[colorName] += value;

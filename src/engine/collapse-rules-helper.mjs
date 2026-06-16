@@ -226,7 +226,10 @@ export default class CollapseRulesHelper {
     let count = 0;
 
     for (const position of ring.positions) {
-      if (board?.[position.row]?.[position.col]?.colorName === colorName) {
+      const stoneColorName =
+        board?.[position.row]?.[position.col]?.colorName ?? null;
+
+      if (stoneColorName === colorName) {
         count++;
       }
     }

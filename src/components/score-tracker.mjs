@@ -1,7 +1,9 @@
 import CollapseRulesHelper, {
   DEFAULT_COLLAPSE_RINGS,
 } from "src/engine/collapse-rules-helper.mjs";
-import ScoreCalculator, { STONE_COLORS } from "src/engine/score-calculator.mjs";
+import ScoreCalculator, {
+  PLAYER_COLORS,
+} from "src/engine/score-calculator.mjs";
 import { IP5Lifecycle } from "src/p5/interfaces.mjs";
 
 /** @typedef {import("src/components/board.mjs").default} Board */
@@ -36,7 +38,7 @@ export default class ScoreTracker extends IP5Lifecycle {
     this.board = options.board;
     this.gameState = options.gameState;
 
-    this.colors = options.colors ?? STONE_COLORS;
+    this.colors = options.colors ?? PLAYER_COLORS;
 
     // Rename middle collapse ring label to "Outer" for table display.
     this.rings =
@@ -110,19 +112,29 @@ export default class ScoreTracker extends IP5Lifecycle {
 
       const firstDataRowY = y + this.rowHeight * 2;
 
-      for (let i = 0; i < this.colors.length; i++) {
-        const color = this.colors[i];
-        const rowY = firstDataRowY + i * this.rowHeight;
+      let visibleRowIndex = 0;
+
+      for (const color of this.colors) {
+        if (color.name === "scar") continue;
+
+        const innerColorStatus = innerStatus.colors[color.name];
+        const outerColorStatus = outerStatus.colors[color.name];
+
+        if (!innerColorStatus || !outerColorStatus) continue;
+
+        const rowY = firstDataRowY + visibleRowIndex * this.rowHeight;
 
         this.drawDataRow(
           p5,
           x,
           rowY,
           color,
-          scores[color.name],
-          innerStatus.colors[color.name],
-          outerStatus.colors[color.name],
+          scores[color.name] ?? 0,
+          innerColorStatus,
+          outerColorStatus,
         );
+
+        visibleRowIndex++;
       }
     }
     p5.pop();
