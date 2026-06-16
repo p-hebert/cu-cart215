@@ -170,6 +170,30 @@ export default class GoBoardState {
   }
 
   /**
+   * Mutates the current board by resolving captures around affected positions.
+   *
+   * @param {Array<{ col: number, row: number }>} affectedPositions
+   * @returns {GridPosition[]} positions removed
+   */
+  resolveCapturesAroundPositions(affectedPositions) {
+    return this.rulesHelper.resolveCapturesAroundPositions(
+      this.board,
+      affectedPositions,
+    );
+  }
+
+  /**
+   * @param {Array<{ col: number, row: number }>} positions
+   * @returns {boolean}
+   */
+  doAnyPositionsHaveNoLiberties(positions) {
+    return this.rulesHelper.doAnyPositionsHaveNoLiberties(
+      this.board,
+      positions,
+    );
+  }
+
+  /**
    * @param {number} col
    * @param {number} row
    * @param {StoneColorName} colorName

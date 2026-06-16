@@ -45,6 +45,7 @@ import { IP5Lifecycle } from "src/p5/interfaces.mjs";
  * @property {number} [gap]
  * @property {number} [offsetY]
  * @property {StoneSelectorAction[]} [actions]
+ * @property {object} [actionRequirementText]
  * @property {ActionEnabledState} [actionEnabledState]
  * @property {string | null} [selectedActionKey]
  * @property {number} [actionTextSize]
@@ -75,7 +76,6 @@ export default class StoneSelector extends IP5Lifecycle {
     this.selectedColorName = options.selectedColorName ?? this.colors[0].name;
 
     this.actions = options.actions ?? ACTION_LIST;
-
     this.actionEnabledState = options.actionEnabledState ?? {
       shield: true,
       scar: true,
@@ -83,6 +83,7 @@ export default class StoneSelector extends IP5Lifecycle {
       switch: true,
       assimilate: true,
     };
+    this.actionRequirementText = options.actionRequirementText ?? {};
 
     this.selectedActionKey = options.selectedActionKey ?? null;
 
@@ -146,12 +147,29 @@ export default class StoneSelector extends IP5Lifecycle {
         selected: this.selectedActionKey === action.key,
         textSize: this.actionTextSize,
         hitSize: this.actionTextSize + 12,
+        requirementText: this.actionRequirementText[action.key] ?? null,
         hoverDelayMillis: 250,
         onClick: (actionKey) => {
           this.toggleAction(actionKey);
         },
       });
     });
+  }
+
+  /**
+   * @param {Record<string, string | null>} actionRequirementText
+   */
+  setActionRequirementText(actionRequirementText) {
+    this.actionRequirementText = {
+      ...this.actionRequirementText,
+      ...actionRequirementText,
+    };
+
+    for (const actionButton of this.actionButtons) {
+      actionButton.setRequirementText(
+        this.actionRequirementText[actionButton.key] ?? null,
+      );
+    }
   }
 
   /**
@@ -251,8 +269,11 @@ export default class StoneSelector extends IP5Lifecycle {
       actionButton.textSize = this.actionTextSize;
       actionButton.hitSize = this.actionTextSize + 12;
 
-      actionButton.enabled = this.isActionEnabled(action.key);
-      actionButton.selected = this.selectedActionKey === action.key;
+      actionButton.enabled = this.isActionEnabled(actionButton.key);
+      actionButton.selected = this.selectedActionKey === actionButton.key;
+      actionButton.setRequirementText(
+        this.actionRequirementText[actionButton.key] ?? null,
+      );
     }
   }
 
@@ -443,9 +464,7 @@ export default class StoneSelector extends IP5Lifecycle {
       }
     }
 
-    if (!handCursorRequested) {
-      p5.cursor(p5.ARROW);
-    }
+    p5.cursor(handCursorRequested ? p5.HAND : p5.ARROW);
   }
 
   /**

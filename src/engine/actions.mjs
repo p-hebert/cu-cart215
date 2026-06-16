@@ -51,10 +51,10 @@ export const ACTION_LIST = [
 
 export const ACTION_SCORE_DELTAS = Object.freeze({
   [ACTIONS.SHIELD]: 6,
-  [ACTIONS.SCAR]: 13,
+  [ACTIONS.SCAR]: 10,
   [ACTIONS.SPREAD]: 13,
-  [ACTIONS.SWITCH]: 21,
-  [ACTIONS.ASSIMILATE]: 21,
+  [ACTIONS.SWITCH]: 16,
+  [ACTIONS.ASSIMILATE]: 18,
 });
 
 export function createDisabledActionState() {
@@ -250,6 +250,138 @@ export class SpreadAction {
       legal: true,
       reason: null,
       capturedPositions: moveResult.capturedPositions,
+    };
+  }
+}
+
+export class SwitchAction {
+  constructor() {
+    this.key = ACTIONS.SWITCH;
+    this.requiredTargetCount = 2;
+  }
+
+  /**
+   * @param {{
+   *   gameState: import("src/engine/game-state.mjs").default,
+   *   positions: Array<{ col: number, row: number }>,
+   * }} params
+   * @returns {{ legal: boolean, reason: string | null }}
+   */
+  execute({ gameState, positions }) {
+    const currentColorName = gameState.getCurrentColorName();
+
+    if (!Array.isArray(positions)) {
+      return {
+        legal: false,
+        reason: "missing-targets",
+      };
+    }
+
+    if (positions.length !== this.requiredTargetCount) {
+      return {
+        legal: false,
+        reason: "switch-requires-two-targets",
+      };
+    }
+
+    const [ownPosition, targetPosition] = positions;
+
+    const ownStone = gameState.getStoneAt(ownPosition.col, ownPosition.row);
+    const targetStone = gameState.getStoneAt(
+      targetPosition.col,
+      targetPosition.row,
+    );
+
+    if (ownStone === null || ownStone.colorName !== currentColorName) {
+      return {
+        legal: false,
+        reason: "first-target-must-be-your-stone",
+      };
+    }
+
+    if (targetStone === null) {
+      return {
+        legal: false,
+        reason: "second-target-must-be-enemy-stone",
+      };
+    }
+
+    if (targetStone.colorName === "scar") {
+      return {
+        legal: false,
+        reason: "cannot-switch-with-scar",
+      };
+    }
+
+    if (targetStone.colorName === currentColorName) {
+      return {
+        legal: false,
+        reason: "second-target-must-be-enemy-stone",
+      };
+    }
+
+    if (
+      gameState.isCenterIntersection(targetPosition.col, targetPosition.row)
+    ) {
+      return {
+        legal: false,
+        reason: "cannot-switch-with-center-stone",
+      };
+    }
+
+    if (
+      !gameState.isHigherScoringPlayer(targetStone.colorName, currentColorName)
+    ) {
+      return {
+        legal: false,
+        reason: "target-player-not-higher-scoring",
+      };
+    }
+
+    const simulatedBoard = gameState.goBoardState.cloneBoard(
+      gameState.getBoard(),
+    );
+
+    const simulatedOwnStone = simulatedBoard[ownPosition.row][ownPosition.col];
+    const simulatedTargetStone =
+      simulatedBoard[targetPosition.row][targetPosition.col];
+
+    simulatedBoard[ownPosition.row][ownPosition.col] = simulatedTargetStone;
+    simulatedBoard[targetPosition.row][targetPosition.col] = simulatedOwnStone;
+
+    const capturedPositions =
+      gameState.goBoardState.rulesHelper.resolveCapturesAroundPositions(
+        simulatedBoard,
+        [ownPosition, targetPosition],
+      );
+
+    const currentPlayerStoneAfterCapture =
+      simulatedBoard?.[targetPosition.row]?.[targetPosition.col] ?? null;
+
+    if (
+      currentPlayerStoneAfterCapture !== null &&
+      currentPlayerStoneAfterCapture.colorName === currentColorName &&
+      gameState.goBoardState.rulesHelper.doAnyPositionsHaveNoLiberties(
+        simulatedBoard,
+        [targetPosition],
+      )
+    ) {
+      return {
+        legal: false,
+        reason: "suicide",
+      };
+    }
+
+    gameState.commitSnapshot();
+
+    gameState.goBoardState.setBoard(simulatedBoard);
+
+    gameState.markCurrentPlayerActionUsedAndAdvanceTurn();
+
+    return {
+      legal: true,
+      reason: null,
+      capturedPositions,
     };
   }
 }

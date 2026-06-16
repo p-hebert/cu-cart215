@@ -9,6 +9,7 @@ export default class ActionButton extends IP5Lifecycle {
    *   label: string,
    *   name?: string,
    *   description?: string,
+   *   requirementText?: string,
    *   enabled?: boolean,
    *   selected?: boolean,
    *   textSize?: number,
@@ -27,6 +28,7 @@ export default class ActionButton extends IP5Lifecycle {
     this.label = options.label;
     this.name = options.name ?? options.key;
     this.description = options.description ?? "";
+    this.requirementText = options.requirementText ?? null;
 
     this.enabled = options.enabled ?? true;
     this.selected = options.selected ?? false;
@@ -92,11 +94,17 @@ export default class ActionButton extends IP5Lifecycle {
   }
 
   /**
+   * @param {string | null} requirementText
+   */
+  setRequirementText(requirementText) {
+    this.requirementText = requirementText;
+  }
+
+  /**
    * @param {import("p5")} p5
    * @returns {boolean}
    */
   shouldShowTooltip(p5) {
-    if (!this.enabled) return false;
     if (!this.hovered) return false;
     if (this.hoverStartedAtMillis === null) return false;
 
@@ -106,36 +114,66 @@ export default class ActionButton extends IP5Lifecycle {
   /**
    * @param {import("p5")} p5
    */
+  /**
+   * @param {import("p5")} p5
+   */
   drawTooltip(p5) {
-    const padding = 12;
-    const width = 280;
-    const titleSize = 14;
-    const bodySize = 13;
-    const lineGap = 8;
+    if (!this.hovered) return;
+    if (this.hoverStartedAtMillis === null) return;
 
-    const title = this.name.toUpperCase();
-    const description = this.description;
+    const elapsed = p5.millis() - this.hoverStartedAtMillis;
 
-    const titleHeight = titleSize + 4;
+    if (elapsed < this.hoverDelayMillis) return;
+
+    const maxWidth = 260;
+    const padding = 10;
+    const titleTextSize = 13;
+    const bodyTextSize = 12;
+    const requirementTextSize = 12;
+
+    const titleLines = [this.name.toUpperCase()];
     const bodyLines = this.wrapText(
       p5,
-      description,
-      width - padding * 2,
-      bodySize,
+      this.description,
+      maxWidth - padding * 2,
+      bodyTextSize,
     );
-    const bodyHeight = bodyLines.length * (bodySize + 4);
 
-    const height = padding * 2 + titleHeight + lineGap + bodyHeight;
+    const requirementLines = this.requirementText
+      ? this.wrapText(
+          p5,
+          this.requirementText,
+          maxWidth - padding * 2,
+          requirementTextSize,
+        )
+      : [];
 
-    let x = this.x - width / 2;
-    let y = this.y - this.hitSize / 2 - height - 14;
+    const titleLineHeight = titleTextSize + 4;
+    const bodyLineHeight = bodyTextSize + 4;
+    const requirementLineHeight = requirementTextSize + 4;
 
-    // Keep inside canvas horizontally.
-    x = Math.max(8, Math.min(x, p5.width - width - 8));
+    const titleHeight = titleLines.length * titleLineHeight;
+    const bodyHeight = bodyLines.length * bodyLineHeight;
+    const requirementHeight = requirementLines.length * requirementLineHeight;
 
-    // If there is not enough space above, show below.
+    const gapAfterTitle = 5;
+    const gapBeforeRequirement = requirementLines.length > 0 ? 6 : 0;
+
+    const height =
+      padding * 2 +
+      titleHeight +
+      gapAfterTitle +
+      bodyHeight +
+      gapBeforeRequirement +
+      requirementHeight;
+
+    let x = this.x - maxWidth / 2;
+    let y = this.y - this.hitSize / 2 - height - 8;
+
+    x = Math.max(8, Math.min(x, p5.width - maxWidth - 8));
+
     if (y < 8) {
-      y = this.y + this.hitSize / 2 + 14;
+      y = this.y + this.hitSize / 2 + 8;
     }
 
     p5.push();
@@ -145,23 +183,42 @@ export default class ActionButton extends IP5Lifecycle {
       p5.stroke(0);
       p5.strokeWeight(1.5);
       p5.fill("#edd58d");
-      p5.rect(x, y, width, height, 6);
+      p5.rect(x, y, maxWidth, height, 6);
+
+      let textY = y + padding;
 
       p5.noStroke();
       p5.fill(0);
       p5.textAlign(p5.LEFT, p5.TOP);
 
+      p5.textSize(titleTextSize);
       p5.textStyle(p5.BOLD);
-      p5.textSize(titleSize);
-      p5.text(title, x + padding, y + padding);
 
+      for (const line of titleLines) {
+        p5.text(line, x + padding, textY);
+        textY += titleLineHeight;
+      }
+
+      textY += gapAfterTitle;
+
+      p5.textSize(bodyTextSize);
       p5.textStyle(p5.NORMAL);
-      p5.textSize(bodySize);
 
-      const bodyY = y + padding + titleHeight + lineGap;
+      for (const line of bodyLines) {
+        p5.text(line, x + padding, textY);
+        textY += bodyLineHeight;
+      }
 
-      for (let i = 0; i < bodyLines.length; i++) {
-        p5.text(bodyLines[i], x + padding, bodyY + i * (bodySize + 4));
+      if (requirementLines.length > 0) {
+        textY += gapBeforeRequirement;
+
+        p5.textSize(requirementTextSize);
+        p5.textStyle(p5.BOLD);
+
+        for (const line of requirementLines) {
+          p5.text(line, x + padding, textY);
+          textY += requirementLineHeight;
+        }
       }
     }
     p5.pop();
@@ -247,9 +304,18 @@ export default class ActionButton extends IP5Lifecycle {
    * @param {MouseEvent} event
    */
   mousePressed(p5, event) {
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      this.pressed = false;
+      return false;
+    }
 
-    this.pressed = this.containsPoint(p5.mouseX, p5.mouseY);
+    if (!this.containsPoint(p5.mouseX, p5.mouseY)) {
+      this.pressed = false;
+      return false;
+    }
+
+    this.pressed = true;
+    return true;
   }
 
   /**
@@ -264,11 +330,12 @@ export default class ActionButton extends IP5Lifecycle {
     }
 
     const wasPressed = this.pressed;
-    const stillInside = this.containsPoint(p5.mouseX, p5.mouseY);
-
     this.pressed = false;
 
-    return wasPressed && stillInside;
+    if (!wasPressed) return false;
+    if (!this.containsPoint(p5.mouseX, p5.mouseY)) return false;
+
+    return true;
   }
 
   click() {

@@ -389,6 +389,85 @@ export default class GoRulesHelper {
   }
 
   /**
+   * Resolves captures caused by already-mutated positions.
+   *
+   * This is useful for actions like Switch where the board has already changed
+   * and we need to evaluate captures around affected stones.
+   *
+   * This mutates the provided board.
+   *
+   * @param {BoardCell[][]} board
+   * @param {Array<{ col: number, row: number }>} affectedPositions
+   * @returns {GridPosition[]} positions actually removed
+   */
+  resolveCapturesAroundPositions(board, affectedPositions) {
+    const capturedPositions = [];
+    const capturedKeys = new Set();
+
+    for (const position of affectedPositions) {
+      const stone = board?.[position.row]?.[position.col] ?? null;
+
+      if (stone === null) continue;
+
+      const capturedAroundPosition = this.getAdjacentEnemyGroupsToCapture(
+        board,
+        position.col,
+        position.row,
+        stone.colorName,
+      );
+
+      for (const capturedPosition of capturedAroundPosition) {
+        const key = this.positionKey(
+          capturedPosition.col,
+          capturedPosition.row,
+        );
+
+        if (capturedKeys.has(key)) continue;
+
+        capturedKeys.add(key);
+        capturedPositions.push(capturedPosition);
+      }
+    }
+
+    for (const position of capturedPositions) {
+      board[position.row][position.col] = null;
+    }
+
+    return capturedPositions;
+  }
+
+  /**
+   * @param {BoardCell[][]} board
+   * @param {Array<{ col: number, row: number }>} positions
+   * @returns {boolean}
+   */
+  doAnyPositionsHaveNoLiberties(board, positions) {
+    const checkedGroups = new Set();
+
+    for (const position of positions) {
+      const stone = board?.[position.row]?.[position.col] ?? null;
+
+      if (stone === null) continue;
+
+      const group = this.getGroup(board, position.col, position.row);
+
+      for (const groupPosition of group) {
+        checkedGroups.add(
+          this.positionKey(groupPosition.col, groupPosition.row),
+        );
+      }
+
+      const liberties = this.getGroupLiberties(board, group);
+
+      if (liberties.length === 0) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Removes all no-liberty stones of a given color from the board.
    *
    * This mutates the provided board.

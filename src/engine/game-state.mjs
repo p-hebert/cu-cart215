@@ -3,6 +3,7 @@ import {
   ScarAction,
   ShieldAction,
   SpreadAction,
+  SwitchAction,
 } from "src/engine/actions.mjs";
 import GoBoardState from "src/engine/go-board-state.mjs";
 import ScoreCalculator from "src/engine/score-calculator.mjs";
@@ -53,6 +54,7 @@ export default class GameState {
       [ACTIONS.SHIELD]: new ShieldAction(),
       [ACTIONS.SCAR]: new ScarAction(),
       [ACTIONS.SPREAD]: new SpreadAction(),
+      [ACTIONS.SWITCH]: new SwitchAction(),
     };
     this.actionCooldowns = this.createEmptyCooldowns();
 
@@ -103,6 +105,46 @@ export default class GameState {
 
   canRedo() {
     return this.redoStack.length > 0;
+  }
+
+  /**
+   * @param {StoneColorName} colorName
+   * @returns {boolean}
+   */
+  hasStoneOfColor(colorName) {
+    const board = this.getBoard();
+
+    for (let row = 0; row < board.length; row++) {
+      for (let col = 0; col < board[row].length; col++) {
+        const stone = board[row][col];
+
+        if (stone?.colorName === colorName) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * @param {number} col
+   * @param {number} row
+   * @returns {boolean}
+   */
+  isCenterIntersection(col, row) {
+    const boardSize = this.getBoard().length;
+    const center = Math.floor(boardSize / 2);
+    return col === center && row === center;
+  }
+
+  /**
+   * @param {number} col
+   * @param {number} row
+   * @returns {import("src/engine/stone-data.mjs").default | null}
+   */
+  getStoneAt(col, row) {
+    return this.getBoard()?.[row]?.[col] ?? null;
   }
 
   /**

@@ -5,7 +5,11 @@ import NotificationToast from "src/components/notification-toast.mjs";
 import ScoreTracker from "src/components/score-tracker.mjs";
 import StoneSelector from "src/components/stone-selector.mjs";
 import ActionAvailabilityHelper from "src/engine/action-availability-helper.mjs";
-import { ACTIONS, ACTION_LIST } from "src/engine/actions.mjs";
+import {
+  ACTIONS,
+  ACTION_LIST,
+  ACTION_SCORE_DELTAS,
+} from "src/engine/actions.mjs";
 import GameState from "src/engine/game-state.mjs";
 import { isPointValueAt } from "src/engine/points.mjs";
 import ScoreCalculator from "src/engine/score-calculator.mjs";
@@ -352,8 +356,18 @@ export default class GameScene extends BaseScene {
   }
 
   drawPendingActionTargets(p5) {
+    const selectedActionKey = this.stoneSelector.getSelectedActionKey();
+
     for (const position of this.pendingActionTargets) {
-      const colorName = this.gameState.getCurrentColorName();
+      let colorName = this.gameState.getCurrentColorName();
+      let strokeColor = "#00aaff";
+
+      const stone = this.gameState.getStoneAt(position.col, position.row);
+
+      if (selectedActionKey === ACTIONS.SWITCH && stone !== null) {
+        colorName = stone.colorName;
+        strokeColor = "#0f0";
+      }
 
       this.drawStoneAtGridPosition(
         p5,
@@ -362,11 +376,42 @@ export default class GameScene extends BaseScene {
         colorName,
         0.5,
         {
-          strokeColor: "#00aaff",
+          strokeColor,
           strokeWeight: 4,
         },
       );
     }
+  }
+
+  getCurrentScoreDeltaFromTop() {
+    const scores = this.scoreCalculator.calculateScores(
+      this.gameState.getBoard(),
+    );
+    const currentColorName = this.gameState.getCurrentColorName();
+
+    const currentScore = scores[currentColorName] ?? 0;
+    const topScore = Math.max(...Object.values(scores));
+
+    return Math.max(0, topScore - currentScore);
+  }
+
+  getActionRequirementText() {
+    const currentDelta = this.getCurrentScoreDeltaFromTop();
+    const requirementText = {};
+
+    for (const [actionKey, neededDelta] of Object.entries(
+      ACTION_SCORE_DELTAS,
+    )) {
+      const action = this.stoneSelector.actions.find((entry) => {
+        return entry.key === actionKey;
+      });
+
+      const actionName = action?.name ?? actionKey;
+
+      requirementText[actionKey] = `Gap: ${currentDelta}/${neededDelta}`;
+    }
+
+    return requirementText;
   }
 
   updateActionAvailability() {
@@ -381,9 +426,13 @@ export default class GameScene extends BaseScene {
         currentColorName,
         scores,
         cooldowns: this.gameState.getActionCooldowns(),
+        gameState: this.gameState,
       });
 
     this.stoneSelector.setActionEnabledState(enabledState);
+    this.stoneSelector.setActionRequirementText(
+      this.getActionRequirementText(),
+    );
   }
 
   clearPendingActionTargets() {
@@ -487,7 +536,7 @@ export default class GameScene extends BaseScene {
     const selectedActionKey = this.stoneSelector.getSelectedActionKey();
 
     if (selectedActionKey) {
-      this.executeSelectedActionAt(p5, col, row);
+      this.executeSelectedActionAt(col, row);
     } else {
       if (!this.hoverMoveResult || !this.hoverMoveResult.legal) {
         this.notificationToast.show(
@@ -542,6 +591,88 @@ export default class GameScene extends BaseScene {
     return true;
   }
 
+  handleSwitchTargetClick(col, row) {
+    const currentColorName = this.gameState.getCurrentColorName();
+    const stone = this.gameState.getStoneAt(col, row);
+
+    if (this.pendingActionTargets.length === 0) {
+      if (stone === null || stone.colorName !== currentColorName) {
+        this.notificationToast.show(
+          "Illegal action: first Switch target must be one of your stones",
+        );
+        return false;
+      }
+
+      this.pendingActionTargets.push({ col, row });
+      this.notificationToast.show(
+        "Switch: select a higher-scoring player's non-center stone",
+      );
+      return false;
+    }
+
+    const alreadySelected = this.pendingActionTargets.some((position) => {
+      return position.col === col && position.row === row;
+    });
+
+    if (alreadySelected) {
+      this.notificationToast.show("Illegal action: duplicate Switch target");
+      return false;
+    }
+
+    if (stone === null) {
+      this.notificationToast.show(
+        "Illegal action: second Switch target must be an enemy stone",
+      );
+      return false;
+    }
+
+    if (stone.colorName === "scar") {
+      this.notificationToast.show("Illegal action: cannot switch with a Scar");
+      return false;
+    }
+
+    if (stone.colorName === currentColorName) {
+      this.notificationToast.show(
+        "Illegal action: second Switch target must be an enemy stone",
+      );
+      return false;
+    }
+
+    if (this.gameState.isCenterIntersection(col, row)) {
+      this.notificationToast.show(
+        "Illegal action: cannot switch with center stone",
+      );
+      return false;
+    }
+
+    if (
+      !this.gameState.isHigherScoringPlayer(stone.colorName, currentColorName)
+    ) {
+      this.notificationToast.show(
+        "Illegal action: target player must be higher-scoring",
+      );
+      return false;
+    }
+
+    this.pendingActionTargets.push({ col, row });
+
+    const result = this.gameState.executeCurrentPlayerAction(ACTIONS.SWITCH, {
+      positions: this.pendingActionTargets,
+    });
+
+    if (!result.legal) {
+      this.notificationToast.show(`Illegal action: ${result.reason}`);
+      this.clearPendingActionTargets();
+      return false;
+    }
+
+    this.stoneSelector.setSelectedActionKey(null);
+    this.clearPendingActionTargets();
+    this.syncSelectorFromGameState();
+
+    return true;
+  }
+
   /**
    * @param {number} col
    * @param {number} row
@@ -568,13 +699,17 @@ export default class GameScene extends BaseScene {
     return true;
   }
 
-  executeSelectedActionAt(p5, col, row) {
+  executeSelectedActionAt(col, row) {
     const actionKey = this.stoneSelector.getSelectedActionKey();
 
     if (!actionKey) return false;
 
     if (actionKey === ACTIONS.SPREAD) {
       return this.handleSpreadTargetClick(col, row);
+    }
+
+    if (actionKey === ACTIONS.SWITCH) {
+      return this.handleSwitchTargetClick(col, row);
     }
 
     const result = this.gameState.executeCurrentPlayerAction(actionKey, {
@@ -590,7 +725,6 @@ export default class GameScene extends BaseScene {
     this.stoneSelector.setSelectedActionKey(null);
     this.clearPendingActionTargets();
     this.syncSelectorFromGameState();
-    this.updateHoveredIntersection?.(p5);
 
     return true;
   }
