@@ -59,6 +59,13 @@ export default class GoBoardState {
   }
 
   /**
+   * @param {BoardCell[][]} board
+   */
+  setBoard(board) {
+    this.board = this.cloneBoard(board);
+  }
+
+  /**
    * @param {number} col
    * @param {number} row
    * @returns {BoardCell}

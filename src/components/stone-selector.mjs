@@ -1,5 +1,6 @@
 import ActionButton from "src/components/action-button.mjs";
 import StoneButton from "src/components/stone-button.mjs";
+import { ACTION_LIST } from "src/engine/actions.mjs";
 import { IP5Lifecycle } from "src/p5/interfaces.mjs";
 
 /** @typedef {import("src/components/board.mjs").default} Board */
@@ -72,42 +73,7 @@ export default class StoneSelector extends IP5Lifecycle {
 
     this.selectedColorName = options.selectedColorName ?? this.colors[0].name;
 
-    this.actions = options.actions ?? [
-      {
-        key: "shield",
-        label: "🛡️",
-        name: "Shield",
-        description:
-          "Protect one of your stones until the end of your next turn",
-      },
-      {
-        key: "scar",
-        label: "⚡",
-        name: "Scar",
-        description:
-          "Replace a higher-scoring player’s stone with a temporary hostile blocker",
-      },
-      {
-        key: "spread",
-        label: "🦠",
-        name: "Spread",
-        description: "Place two stones on 1-point or 3-point intersections",
-      },
-      {
-        key: "switch",
-        label: "🔀",
-        name: "Switch",
-        description:
-          "Swap one of your stones with a higher-scoring player’s non-center stone",
-      },
-      {
-        key: "assimilate",
-        label: "🏴‍☠️",
-        name: "Assimilate",
-        description:
-          "Convert a higher-scoring player’s stone adjacent to two of yours",
-      },
-    ];
+    this.actions = options.actions ?? ACTION_LIST;
 
     this.actionEnabledState = options.actionEnabledState ?? {
       shield: true,

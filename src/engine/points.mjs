@@ -66,5 +66,5 @@ export const POINT_SHEET = [
   [3, 4, 6],
 
   // center
-  [3, 3, 18],
+  [3, 3, 12],
 ];

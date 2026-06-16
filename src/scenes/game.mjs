@@ -3,7 +3,10 @@ import CountdownTimer from "src/components/countdown-timer.mjs";
 import HistoryButtonGroup from "src/components/history-button-group.mjs";
 import ScoreTracker from "src/components/score-tracker.mjs";
 import StoneSelector from "src/components/stone-selector.mjs";
-import GoBoardState from "src/engine/go-board-state.mjs";
+import ActionAvailabilityHelper from "src/engine/action-availability-helper.mjs";
+import { ACTION_LIST } from "src/engine/actions.mjs";
+import GameState from "src/engine/game-state.mjs";
+import ScoreCalculator from "src/engine/score-calculator.mjs";
 import { BaseScene } from "src/p5/scene.mjs";
 
 const STONE_COLORS = {
@@ -14,7 +17,6 @@ const STONE_COLORS = {
 };
 
 const STONE_SIZE = 36;
-const GHOST_STONE_ALPHA = 0.5;
 
 /**
  * Game Scene
@@ -30,15 +32,23 @@ export default class GameScene extends BaseScene {
 
     this.board = null;
 
-    // boardState[row][col] = null | "black" | "white" | "blood-red" | "midnight-blue"
-    this.boardState = null;
+    this.gameState = null;
     // { col, row } | null
     this.hoveredIntersection = null;
     this.hoverMoveResult = null;
 
-    this.countdownTimer = null;
+    this.scoreCalculator = null;
+    this.actionAvailabilityHelper = null;
     this.scoreTracker = null;
     this.stoneSelector = null;
+    this.countdownTimer = null;
+
+    this.actionCooldowns = {
+      black: false,
+      white: false,
+      "blood-red": false,
+      "midnight-blue": false,
+    };
     this.historyButtonGroup = null;
 
     this._setupped = false;
@@ -60,21 +70,18 @@ export default class GameScene extends BaseScene {
     });
     this.board.setup(p5);
 
-    this.goBoardState = new GoBoardState({
+    this.gameState = new GameState({
       boardSize: this.board.boardSize,
     });
 
-    this.countdownTimer = new CountdownTimer({
-      board: this.board,
-      durationSeconds: 10 * 60,
-      offsetY: 44,
-      fontSize: 32,
-    });
-    this.countdownTimer.setup(p5);
+    this.scoreCalculator = new ScoreCalculator();
+
+    this.actionAvailabilityHelper = new ActionAvailabilityHelper();
 
     this.scoreTracker = new ScoreTracker({
       board: this.board,
-      boardState: this.goBoardState,
+      gameState: this.gameState,
+      scoreCalculator: this.scoreCalculator,
       offsetX: 44,
       offsetY: 32,
 
@@ -133,36 +140,35 @@ export default class GameScene extends BaseScene {
 
     this.stoneSelector = new StoneSelector({
       board: this.board,
-      selectedColorName: "black",
+      selectedColorName: this.gameState.getCurrentColorName(),
       enabled: false,
 
-      actionEnabledState: {
-        shield: true,
-        scar: false,
-        spread: true,
-        switch: false,
-        assimilate: true,
-      },
-
-      onActionChange: (actionKey) => {
-        console.log("Selected action:", actionKey);
-      },
+      actions: ACTION_LIST,
+      offsetY: 44,
     });
     this.stoneSelector.setup(p5);
 
     this.historyButtonGroup = new HistoryButtonGroup({
       board: this.board,
-      boardState: this.goBoardState,
+      gameState: this.gameState,
       offsetY: 44,
       align: "left",
       onUndo: () => {
-        this.stoneSelector.selectPreviousColor();
+        this.syncSelectorFromGameState();
       },
       onRedo: () => {
-        this.stoneSelector.selectNextColor();
+        this.syncSelectorFromGameState();
       },
     });
     this.historyButtonGroup.setup(p5);
+
+    this.countdownTimer = new CountdownTimer({
+      board: this.board,
+      durationSeconds: 10 * 60,
+      offsetY: 44,
+      fontSize: 32,
+    });
+    this.countdownTimer.setup(p5);
 
     this._setupped = true;
   }
@@ -192,16 +198,23 @@ export default class GameScene extends BaseScene {
     this.drawGhostStone(p5);
 
     this.countdownTimer.draw(p5);
+
     this.scoreTracker.draw(p5);
-    this.historyButtonGroup.draw(p5);
+
+    this.stoneSelector.setSelectedColorName(
+      this.gameState.getCurrentColorName(),
+    );
+    this.updateActionAvailability();
     this.stoneSelector.draw(p5);
+
+    this.historyButtonGroup.draw(p5);
   }
 
   /**
    * @param {import('p5')} p5
    */
   drawStones(p5) {
-    const boardState = this.goBoardState.getBoard();
+    const boardState = this.gameState.getBoard();
 
     for (let row = 0; row < boardState.length; row++) {
       for (let col = 0; col < boardState[row].length; col++) {
@@ -304,6 +317,40 @@ export default class GameScene extends BaseScene {
     p5.pop();
   }
 
+  updateActionAvailability() {
+    const currentColorName = this.gameState.getCurrentColorName();
+
+    const scores = this.scoreCalculator.calculateScores(
+      this.gameState.getBoard(),
+    );
+
+    const enabledState =
+      this.actionAvailabilityHelper.getEnabledActionsForPlayer({
+        currentColorName,
+        scores,
+        cooldowns: this.gameState.getActionCooldowns(),
+      });
+
+    this.stoneSelector.setActionEnabledState(enabledState);
+  }
+
+  markCurrentPlayerActionUsed() {
+    const currentColorName = this.stoneSelector.getSelectedColorName();
+
+    this.actionCooldowns[currentColorName] = true;
+    this.stoneSelector.setSelectedActionKey(null);
+
+    this.updateActionAvailability();
+  }
+
+  syncSelectorFromGameState() {
+    this.stoneSelector.setSelectedColorName(
+      this.gameState.getCurrentColorName(),
+    );
+    this.stoneSelector.setSelectedActionKey(null);
+    this.updateActionAvailability();
+  }
+
   /**
    * p5 may not always emit mouseMoved while dragging or after a click,
    * so keeping this separate makes it easy to reuse.
@@ -325,7 +372,7 @@ export default class GameScene extends BaseScene {
     const { col, row } = this.hoveredIntersection;
     const colorName = this.stoneSelector.getSelectedColorName();
 
-    this.hoverMoveResult = this.goBoardState.getLegalMovePreview(
+    this.hoverMoveResult = this.gameState.getLegalMovePreview(
       col,
       row,
       colorName,
@@ -381,9 +428,15 @@ export default class GameScene extends BaseScene {
     }
 
     const { col, row } = this.hoveredIntersection;
-    const colorName = this.stoneSelector.getSelectedColorName();
+    const selectedActionKey = this.stoneSelector.getSelectedActionKey();
 
-    this.placeStone(col, row, colorName);
+    if (selectedActionKey) {
+      // Later:
+      // this.executeSelectedAction(selectedActionKey, target);
+      return;
+    }
+
+    this.placeStone(col, row);
     this.updateHoveredIntersection(p5);
   }
 
@@ -394,14 +447,15 @@ export default class GameScene extends BaseScene {
    * @returns {boolean}
    */
   placeStone(col, row, colorName) {
-    const moveResult = this.goBoardState.placeLegalStone(col, row, colorName);
+    const moveResult = this.gameState.placeLegalStone(col, row, colorName);
 
     if (!moveResult.legal) {
       console.log("Illegal move:", moveResult.reason);
       return false;
     }
 
-    this.stoneSelector.selectNextColor();
+    this.stoneSelector.setSelectedActionKey(null);
+    this.syncSelectorFromGameState();
 
     if (this.scoreTracker.hasImmediateCollapse()) {
       console.log("COLLAPSE: all players lose");

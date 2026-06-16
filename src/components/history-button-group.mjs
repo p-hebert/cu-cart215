@@ -2,13 +2,13 @@ import Button from "src/components/button.mjs";
 import { IP5Lifecycle } from "src/p5/interfaces.mjs";
 
 /** @typedef {import("src/components/board.mjs").default} Board */
-/** @typedef {import("src/state/go-board-state.mjs").default} GoBoardState */
+/** @typedef {import("src/engine/game-state.mjs").default} GameState */
 
 export default class HistoryButtonGroup extends IP5Lifecycle {
   /**
    * @param {{
    *   board: Board,
-   *   boardState: GoBoardState,
+   *   gameState: GameState,
    *   buttonWidth?: number,
    *   buttonHeight?: number,
    *   gap?: number,
@@ -22,7 +22,7 @@ export default class HistoryButtonGroup extends IP5Lifecycle {
     super();
 
     this.board = options.board;
-    this.boardState = options.boardState;
+    this.gameState = options.gameState;
 
     this.buttonWidth = options.buttonWidth ?? 42;
     this.buttonHeight = options.buttonHeight ?? 30;
@@ -66,7 +66,7 @@ export default class HistoryButtonGroup extends IP5Lifecycle {
       label: "←",
       styles,
       onClick: () => {
-        const changed = this.boardState.undo();
+        const changed = this.gameState.undo();
         if (changed) this.onUndo?.();
       },
     });
@@ -79,7 +79,7 @@ export default class HistoryButtonGroup extends IP5Lifecycle {
       label: "→",
       styles,
       onClick: () => {
-        const changed = this.boardState.redo();
+        const changed = this.gameState.redo();
         if (changed) this.onRedo?.();
       },
     });
@@ -127,8 +127,8 @@ export default class HistoryButtonGroup extends IP5Lifecycle {
   }
 
   updateDisabledState() {
-    this.backButton.disabled = !this.boardState.canUndo();
-    this.forwardButton.disabled = !this.boardState.canRedo();
+    this.backButton.disabled = !this.gameState.canUndo();
+    this.forwardButton.disabled = !this.gameState.canRedo();
   }
 
   /**

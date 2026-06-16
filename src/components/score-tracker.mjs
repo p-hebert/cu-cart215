@@ -5,13 +5,16 @@ import ScoreCalculator, { STONE_COLORS } from "src/engine/score-calculator.mjs";
 import { IP5Lifecycle } from "src/p5/interfaces.mjs";
 
 /** @typedef {import("src/components/board.mjs").default} Board */
-/** @typedef {import("src/engine/go-board-state.mjs").default} GoBoardState */
+/** @typedef {import("src/engine/game-state.mjs").default} GameState */
+/**
+ * @property {import("src/engine/score-calculator.mjs").default} [scoreCalculator]
+ */
 
 export default class ScoreTracker extends IP5Lifecycle {
   /**
    * @param {{
    *   board: Board,
-   *   boardState: GoBoardState,
+   *   gameState: GameState,
    *   colors?: Array<{ name: string, value: string }>,
    *   rings?: import("src/engine/collapse-rules-helper.mjs").CollapseRingRule[],
    *   offsetX?: number,
@@ -31,7 +34,7 @@ export default class ScoreTracker extends IP5Lifecycle {
     super();
 
     this.board = options.board;
-    this.boardState = options.boardState;
+    this.gameState = options.gameState;
 
     this.colors = options.colors ?? STONE_COLORS;
 
@@ -63,9 +66,11 @@ export default class ScoreTracker extends IP5Lifecycle {
       outer: options.colWidths?.outer ?? 72,
     };
 
-    this.scoreCalculator = new ScoreCalculator({
-      colors: this.colors,
-    });
+    this.scoreCalculator =
+      options.scoreCalculator ??
+      new ScoreCalculator({
+        colors: this.colors,
+      });
 
     this.collapseRulesHelper = new CollapseRulesHelper({
       colors: this.colors,
@@ -82,7 +87,7 @@ export default class ScoreTracker extends IP5Lifecycle {
    * @param {import("p5")} p5
    */
   draw(p5) {
-    const board = this.boardState.getBoard();
+    const board = this.gameState.getBoard();
     const scores = this.scoreCalculator.calculateScores(board);
     const collapseStatus = this.collapseRulesHelper.getCollapseStatus(board);
 
@@ -259,25 +264,25 @@ export default class ScoreTracker extends IP5Lifecycle {
 
   hasImmediateCollapse() {
     return this.collapseRulesHelper.hasImmediateCollapse(
-      this.boardState.getBoard(),
+      this.gameState.getBoard(),
     );
   }
 
   hasEndgameCollapse() {
     return this.collapseRulesHelper.hasEndgameCollapse(
-      this.boardState.getBoard(),
+      this.gameState.getBoard(),
     );
   }
 
   getImmediateCollapseEntries() {
     return this.collapseRulesHelper.getImmediateCollapseEntries(
-      this.boardState.getBoard(),
+      this.gameState.getBoard(),
     );
   }
 
   getEndgameCollapseEntries() {
     return this.collapseRulesHelper.getEndgameCollapseEntries(
-      this.boardState.getBoard(),
+      this.gameState.getBoard(),
     );
   }
 }
