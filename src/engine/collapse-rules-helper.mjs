@@ -3,7 +3,7 @@
  */
 
 /**
- * @typedef {StoneColorName | null} BoardCell
+ * @typedef {import("src/engine/stone-data.mjs").default | null} BoardCell
  */
 
 /**
@@ -226,7 +226,7 @@ export default class CollapseRulesHelper {
     let count = 0;
 
     for (const position of ring.positions) {
-      if (board?.[position.row]?.[position.col] === colorName) {
+      if (board?.[position.row]?.[position.col]?.colorName === colorName) {
         count++;
       }
     }

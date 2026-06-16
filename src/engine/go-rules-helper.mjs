@@ -1,9 +1,11 @@
+import StoneData from "src/engine/stone-data.mjs";
+
 /**
  * @typedef {"black" | "white" | "blood-red" | "midnight-blue"} StoneColorName
  */
 
 /**
- * @typedef {StoneColorName | null} BoardCell
+ * @typedef {import("src/engine/stone-data.mjs").default | null} BoardCell
  */
 
 /**
@@ -59,7 +61,9 @@ export default class GoRulesHelper {
     const resultingBoard = this.cloneBoard(board);
 
     // 1. Place stone first.
-    resultingBoard[row][col] = colorName;
+    resultingBoard[row][col] = new StoneData({
+      colorName,
+    });
 
     // 2. Determine all enemy groups that would be captured.
     // Important: this is simultaneous. We collect all captured positions first,
@@ -110,6 +114,18 @@ export default class GoRulesHelper {
     };
   }
 
+  getCellColorName(board, col, row) {
+    return board[row][col]?.colorName ?? null;
+  }
+
+  isCellEmpty(board, col, row) {
+    return board[row][col] === null;
+  }
+
+  isCellCapturable(board, col, row) {
+    return board[row][col]?.capturable ?? true;
+  }
+
   /**
    * @param {BoardCell[][]} board
    * @param {number} col
@@ -147,7 +163,11 @@ export default class GoRulesHelper {
     const checkedGroupStones = new Set();
 
     for (const neighbor of this.getNeighbors(placedCol, placedRow)) {
-      const neighborColor = board[neighbor.row][neighbor.col];
+      const neighborColor = this.getCellColorName(
+        board,
+        neighbor.col,
+        neighbor.row,
+      );
 
       if (neighborColor === null) continue;
       if (neighborColor === placedColorName) continue;
@@ -163,12 +183,93 @@ export default class GoRulesHelper {
 
       const liberties = this.getGroupLiberties(board, enemyGroup);
 
-      if (liberties.length === 0) {
-        capturedPositions.push(...enemyGroup);
-      }
+      if (liberties.length > 0) continue;
+
+      const capturablePositions = this.getCapturablePositionsInGroup(
+        board,
+        enemyGroup,
+      );
+
+      capturedPositions.push(...capturablePositions);
     }
 
     return capturedPositions;
+  }
+
+  /**
+   * Removes all no-liberty stones of a given color from the board.
+   *
+   * This mutates the provided board.
+   *
+   * Important:
+   * - Shielded / non-capturable stones are not removed.
+   * - If a dead group contains both capturable and non-capturable stones,
+   *   only capturable stones are removed.
+   *
+   * @param {BoardCell[][]} board
+   * @param {StoneColorName} colorName
+   * @returns {GridPosition[]} positions actually removed
+   */
+  removeDeadGroupsForColor(board, colorName) {
+    const removedPositions = [];
+    const checked = new Set();
+
+    for (let row = 0; row < this.boardSize; row++) {
+      for (let col = 0; col < this.boardSize; col++) {
+        const cellColorName = this.getCellColorName(board, col, row);
+
+        if (cellColorName !== colorName) continue;
+
+        const key = this.positionKey(col, row);
+        if (checked.has(key)) continue;
+
+        const group = this.getGroup(board, col, row);
+
+        for (const position of group) {
+          checked.add(this.positionKey(position.col, position.row));
+        }
+
+        const liberties = this.getGroupLiberties(board, group);
+
+        if (liberties.length > 0) continue;
+
+        const capturablePositions = this.getCapturablePositionsInGroup(
+          board,
+          group,
+        );
+
+        for (const position of capturablePositions) {
+          board[position.row][position.col] = null;
+          removedPositions.push(position);
+        }
+      }
+    }
+
+    return removedPositions;
+  }
+
+  /**
+   * Non-mutating version of removeDeadGroupsForColor.
+   *
+   * @param {BoardCell[][]} board
+   * @param {StoneColorName} colorName
+   * @returns {{
+   *   resultingBoard: BoardCell[][],
+   *   removedPositions: GridPosition[],
+   * }}
+   */
+  getBoardAfterRemovingDeadGroupsForColor(board, colorName) {
+    const resultingBoard = this.cloneBoard(board);
+
+    const removedPositions = this.removeDeadGroupsForColor(
+      resultingBoard,
+      colorName,
+    );
+
+    return {
+      resultingBoard,
+      removedPositions,
+    };
   }
 
   /**
@@ -178,7 +279,7 @@ export default class GoRulesHelper {
    * @returns {GridPosition[]}
    */
   getGroup(board, startCol, startRow) {
-    const colorName = board[startRow][startCol];
+    const colorName = this.getCellColorName(board, startCol, startRow);
 
     if (colorName === null) return [];
 
@@ -193,12 +294,18 @@ export default class GoRulesHelper {
       if (visited.has(key)) continue;
       visited.add(key);
 
-      if (board[current.row][current.col] !== colorName) continue;
+      if (
+        this.getCellColorName(board, current.col, current.row) !== colorName
+      ) {
+        continue;
+      }
 
       group.push(current);
 
       for (const neighbor of this.getNeighbors(current.col, current.row)) {
-        if (board[neighbor.row][neighbor.col] === colorName) {
+        if (
+          this.getCellColorName(board, neighbor.col, neighbor.row) === colorName
+        ) {
           stack.push(neighbor);
         }
       }
@@ -218,7 +325,7 @@ export default class GoRulesHelper {
 
     for (const stone of group) {
       for (const neighbor of this.getNeighbors(stone.col, stone.row)) {
-        if (board[neighbor.row][neighbor.col] !== null) continue;
+        if (!this.isCellEmpty(board, neighbor.col, neighbor.row)) continue;
 
         const key = this.positionKey(neighbor.col, neighbor.row);
 
@@ -232,6 +339,11 @@ export default class GoRulesHelper {
     return liberties;
   }
 
+  getCapturablePositionsInGroup(board, group) {
+    return group.filter((position) => {
+      return this.isCellCapturable(board, position.col, position.row);
+    });
+  }
   /**
    * @param {number} col
    * @param {number} row

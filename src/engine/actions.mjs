@@ -60,3 +60,55 @@ export function createDisabledActionState() {
     return state;
   }, {});
 }
+
+export class ShieldAction {
+  constructor() {
+    this.key = ACTIONS.SHIELD;
+  }
+
+  /**
+   * @param {{
+   *   gameState: import("src/engine/game-state.mjs").default,
+   *   col: number,
+   *   row: number,
+   * }} params
+   * @returns {{ legal: boolean, reason: string | null }}
+   */
+  execute({ gameState, col, row }) {
+    const currentColorName = gameState.getCurrentColorName();
+    const stone = gameState.getBoard()?.[row]?.[col] ?? null;
+
+    if (stone === null) {
+      return {
+        legal: false,
+        reason: "empty-target",
+      };
+    }
+
+    if (stone.colorName !== currentColorName) {
+      return {
+        legal: false,
+        reason: "not-your-stone",
+      };
+    }
+
+    if (!stone.capturable) {
+      return {
+        legal: false,
+        reason: "already-shielded",
+      };
+    }
+
+    gameState.commitSnapshot();
+
+    stone.capturable = false;
+    stone.shieldedByColorName = currentColorName;
+
+    gameState.markCurrentPlayerActionUsedAndAdvanceTurn();
+
+    return {
+      legal: true,
+      reason: null,
+    };
+  }
+}

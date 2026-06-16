@@ -218,11 +218,15 @@ export default class GameScene extends BaseScene {
 
     for (let row = 0; row < boardState.length; row++) {
       for (let col = 0; col < boardState[row].length; col++) {
-        const colorName = boardState[row][col];
+        const stone = boardState[row][col];
 
-        if (colorName === null) continue;
+        if (stone === null) continue;
 
-        this.drawStoneAtGridPosition(p5, col, row, colorName, 1);
+        this.drawStoneAtGridPosition(p5, col, row, stone.colorName, 1);
+
+        if (!stone.capturable) {
+          this.drawShieldOutline(p5, col, row);
+        }
       }
     }
   }
@@ -313,6 +317,19 @@ export default class GameScene extends BaseScene {
         p5.strokeWeight(Math.max(strokeWeight, 2));
         p5.circle(x, y, STONE_SIZE);
       }
+    }
+    p5.pop();
+  }
+
+  drawShieldOutline(p5, col, row) {
+    const { x, y } = this.board.gridToWorld(p5, col, row);
+
+    p5.push();
+    {
+      p5.noFill();
+      p5.stroke("#00aaff");
+      p5.strokeWeight(4);
+      p5.circle(x, y, STONE_SIZE + 10);
     }
     p5.pop();
   }
@@ -422,17 +439,17 @@ export default class GameScene extends BaseScene {
       return;
     }
 
-    if (!this.hoverMoveResult || !this.hoverMoveResult.legal) {
-      console.log("Illegal move:", this.hoverMoveResult?.reason);
-      return;
-    }
-
     const { col, row } = this.hoveredIntersection;
     const selectedActionKey = this.stoneSelector.getSelectedActionKey();
 
     if (selectedActionKey) {
-      // Later:
-      // this.executeSelectedAction(selectedActionKey, target);
+      this.executeSelectedActionAt(col, row);
+      this.updateHoveredIntersection(p5);
+      return;
+    }
+
+    if (!this.hoverMoveResult || !this.hoverMoveResult.legal) {
+      console.log("Illegal move:", this.hoverMoveResult?.reason);
       return;
     }
 
@@ -461,6 +478,27 @@ export default class GameScene extends BaseScene {
       console.log("COLLAPSE: all players lose");
       console.log(this.scoreTracker.getImmediateCollapseEntries());
     }
+
+    return true;
+  }
+
+  executeSelectedActionAt(col, row) {
+    const actionKey = this.stoneSelector.getSelectedActionKey();
+
+    if (!actionKey) return false;
+
+    const result = this.gameState.executeCurrentPlayerAction(actionKey, {
+      col,
+      row,
+    });
+
+    if (!result.legal) {
+      console.log("Illegal action:", result.reason);
+      return false;
+    }
+
+    this.stoneSelector.setSelectedActionKey(null);
+    this.syncSelectorFromGameState();
 
     return true;
   }

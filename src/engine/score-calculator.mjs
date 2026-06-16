@@ -5,7 +5,7 @@ import { POINT_SHEET } from "src/engine/points.mjs";
  */
 
 /**
- * @typedef {StoneColorName | null} BoardCell
+ * @typedef {import("src/engine/stone-data.mjs").default | null} BoardCell
  */
 
 export const STONE_COLORS = [
@@ -35,7 +35,7 @@ export default class ScoreCalculator {
     const scores = this.createEmptyScores();
 
     for (const [col, row, value] of this.pointSheet) {
-      const colorName = board?.[row]?.[col];
+      const colorName = board?.[row]?.[col]?.colorName ?? null;
 
       if (colorName === null || colorName === undefined) continue;
 

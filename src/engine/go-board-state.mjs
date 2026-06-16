@@ -1,11 +1,12 @@
 import GoRulesHelper from "src/engine/go-rules-helper.mjs";
+import StoneData from "src/engine/stone-data.mjs";
 
 /**
  * @typedef {"black" | "white" | "blood-red" | "midnight-blue"} StoneColorName
  */
 
 /**
- * @typedef {StoneColorName | null} BoardCell
+ * @typedef {import("src/engine/stone-data.mjs").default | null} BoardCell
  */
 
 /**
@@ -48,7 +49,12 @@ export default class GoBoardState {
    * @returns {BoardCell[][]}
    */
   cloneBoard(board = this.board) {
-    return board.map((row) => [...row]);
+    return board.map((row) =>
+      row.map((cell) => {
+        if (cell === null) return null;
+        return cell.clone();
+      }),
+    );
   }
 
   /**
@@ -91,6 +97,23 @@ export default class GoBoardState {
    */
   isOnBoard(col, row) {
     return col >= 0 && col < this.boardSize && row >= 0 && row < this.boardSize;
+  }
+
+  getStone(col, row) {
+    if (!this.isOnBoard(col, row)) return null;
+    return this.board[row][col];
+  }
+
+  setStone(col, row, stone) {
+    if (!this.isOnBoard(col, row)) return false;
+    this.board[row][col] = stone;
+    return true;
+  }
+
+  clearStone(col, row) {
+    if (!this.isOnBoard(col, row)) return false;
+    this.board[row][col] = null;
+    return true;
   }
 
   /**
@@ -167,7 +190,7 @@ export default class GoBoardState {
     if (previousValue === colorName) return false;
 
     this.commitHistorySnapshot();
-    this.board[row][col] = colorName;
+    this.board[row][col] = new StoneData({ colorName });
 
     return true;
   }
@@ -185,6 +208,22 @@ export default class GoBoardState {
     this.board[row][col] = null;
 
     return true;
+  }
+
+  /**
+   * Removes dead groups for a color without committing history.
+   * GameState should commit the snapshot before calling this.
+   *
+   * @param {StoneColorName} colorName
+   * @returns {GridPosition[]} removed positions
+   */
+  removeDeadGroupsForColor(colorName) {
+    const removedPositions = this.rulesHelper.removeDeadGroupsForColor(
+      this.board,
+      colorName,
+    );
+
+    return removedPositions;
   }
 
   /**

@@ -1,3 +1,4 @@
+import { ACTIONS, ShieldAction } from "src/engine/actions.mjs";
 import GoBoardState from "src/engine/go-board-state.mjs";
 
 /**
@@ -5,7 +6,7 @@ import GoBoardState from "src/engine/go-board-state.mjs";
  */
 
 /**
- * @typedef {StoneColorName | null} BoardCell
+ * @typedef {import("src/engine/stone-data.mjs").default | null} BoardCell
  */
 
 /**
@@ -38,6 +39,10 @@ export default class GameState {
     });
 
     this.currentColorIndex = 0;
+
+    this.actions = {
+      [ACTIONS.SHIELD]: new ShieldAction(),
+    };
 
     this.actionCooldowns = this.createEmptyCooldowns();
 
@@ -95,23 +100,33 @@ export default class GameState {
    * @returns {import("src/engine/go-rules-helper.mjs").MoveResult}
    */
   placeLegalStone(col, row) {
+    const colorName = this.getCurrentColorName();
     const moveResult = this.getLegalMovePreview(col, row);
 
     if (!moveResult.legal) {
       return moveResult;
     }
 
-    const colorName = this.getCurrentColorName();
-
     this.commitSnapshot();
+
     this.goBoardState.setBoard(moveResult.resultingBoard);
 
-    // Normal turn completed: cooldown is spent.
+    // Cooldown is spent when the player completes their next normal turn.
     this.actionCooldowns[colorName] = false;
+
+    // Shield expires at the end of that player's next turn.
+    this.clearShieldsForColor(colorName);
+
+    // If a shielded stone was surviving with no liberties, it can now die.
+    const removedPositions =
+      this.goBoardState.removeDeadGroupsForColor(colorName);
 
     this.advanceTurn();
 
-    return moveResult;
+    return {
+      ...moveResult,
+      expiredShieldRemovedPositions: removedPositions,
+    };
   }
 
   /**
@@ -141,6 +156,9 @@ export default class GameState {
 
     this.goBoardState.setBoard(moveResult.resultingBoard);
 
+    // Shield expires at the end of that player's next turn.
+    this.clearShieldsForColor(colorName);
+
     // Cooldown is spent only when that player's normal turn completes.
     this.actionCooldowns[colorName] = false;
 
@@ -159,26 +177,53 @@ export default class GameState {
    * @param {unknown} payload
    * @returns {{ legal: boolean, reason: string | null }}
    */
-  executeCurrentPlayerAction(actionKey, payload = null) {
+  executeCurrentPlayerAction(actionKey, payload = {}) {
+    const action = this.actions[actionKey];
+
+    if (!action) {
+      return {
+        legal: false,
+        reason: "unknown-action",
+      };
+    }
+
+    return action.execute({
+      gameState: this,
+      ...payload,
+    });
+  }
+
+  markCurrentPlayerActionUsedAndAdvanceTurn() {
     const colorName = this.getCurrentColorName();
-
-    this.commitSnapshot();
-
-    // TODO: actual action implementation.
-    // Examples:
-    // - shield selected stone
-    // - scar target stone
-    // - spread two stones
-    // - switch positions
-    // - assimilate target stone
 
     this.actionCooldowns[colorName] = true;
     this.advanceTurn();
+  }
 
-    return {
-      legal: true,
-      reason: null,
-    };
+  /**
+   * Clears shields owned by a given player.
+   *
+   * @param {StoneColorName} colorName
+   * @returns {number} number of shields cleared
+   */
+  clearShieldsForColor(colorName) {
+    const board = this.getBoard();
+    let clearedCount = 0;
+
+    for (let row = 0; row < board.length; row++) {
+      for (let col = 0; col < board[row].length; col++) {
+        const stone = board[row][col];
+
+        if (stone === null) continue;
+        if (stone.shieldedByColorName !== colorName) continue;
+
+        stone.capturable = true;
+        stone.shieldedByColorName = null;
+        clearedCount++;
+      }
+    }
+
+    return clearedCount;
   }
 
   advanceTurn() {
