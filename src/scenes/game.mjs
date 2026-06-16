@@ -14,6 +14,7 @@ const STONE_COLORS = {
   white: "#ffffff",
   "blood-red": "#8a0303",
   "midnight-blue": "#191970",
+  scar: "#808080",
 };
 
 const STONE_SIZE = 36;

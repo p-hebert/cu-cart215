@@ -1,5 +1,6 @@
-import { ACTIONS, ShieldAction } from "src/engine/actions.mjs";
+import { ACTIONS, ScarAction, ShieldAction } from "src/engine/actions.mjs";
 import GoBoardState from "src/engine/go-board-state.mjs";
+import ScoreCalculator from "src/engine/score-calculator.mjs";
 
 /**
  * @typedef {"black" | "white" | "blood-red" | "midnight-blue"} StoneColorName
@@ -38,12 +39,15 @@ export default class GameState {
       boardSize: options.boardSize ?? 7,
     });
 
+    this.scoreCalculator = options.scoreCalculator ?? new ScoreCalculator();
+
     this.currentColorIndex = 0;
+    this.turnNumber = 0;
 
     this.actions = {
       [ACTIONS.SHIELD]: new ShieldAction(),
+      [ACTIONS.SCAR]: new ScarAction(),
     };
-
     this.actionCooldowns = this.createEmptyCooldowns();
 
     this.undoStack = [];
@@ -57,6 +61,18 @@ export default class GameState {
     }, {});
   }
 
+  getTurnNumber() {
+    return this.turnNumber;
+  }
+
+  getTurnOrderLength() {
+    return this.turnOrder.length;
+  }
+
+  getScores() {
+    return this.scoreCalculator.calculateScores(this.getBoard());
+  }
+
   getBoard() {
     return this.goBoardState.getBoard();
   }
@@ -67,6 +83,12 @@ export default class GameState {
 
   getActionCooldowns() {
     return this.actionCooldowns;
+  }
+
+  isHigherScoringPlayer(targetColorName, currentColorName) {
+    const scores = this.getScores();
+
+    return (scores[targetColorName] ?? 0) > (scores[currentColorName] ?? 0);
   }
 
   canUndo() {
@@ -229,6 +251,16 @@ export default class GameState {
   advanceTurn() {
     this.currentColorIndex =
       (this.currentColorIndex + 1) % this.turnOrder.length;
+
+    this.turnNumber++;
+
+    this.handleStartOfTurnEffects();
+  }
+
+  handleStartOfTurnEffects() {
+    const currentColorName = this.getCurrentColorName();
+
+    this.removeExpiredScarsForColor(currentColorName);
   }
 
   /**
@@ -249,6 +281,7 @@ export default class GameState {
     return {
       board: this.goBoardState.cloneBoard(this.goBoardState.getBoard()),
       currentColorIndex: this.currentColorIndex,
+      turnNumber: this.turnNumber,
       actionCooldowns: { ...this.actionCooldowns },
     };
   }
@@ -256,6 +289,7 @@ export default class GameState {
   restoreSnapshot(snapshot) {
     this.goBoardState.setBoard(snapshot.board);
     this.currentColorIndex = snapshot.currentColorIndex;
+    this.turnNumber = snapshot.turnNumber;
     this.actionCooldowns = { ...snapshot.actionCooldowns };
   }
 
@@ -279,5 +313,27 @@ export default class GameState {
     this.restoreSnapshot(nextSnapshot);
 
     return true;
+  }
+
+  removeExpiredScarsForColor(colorName) {
+    const board = this.getBoard();
+    let removedCount = 0;
+
+    for (let row = 0; row < board.length; row++) {
+      for (let col = 0; col < board[row].length; col++) {
+        const stone = board[row][col];
+
+        if (stone === null) continue;
+        if (stone.colorName !== "scar") continue;
+        if (stone.scarCreatedByColorName !== colorName) continue;
+        if (stone.expiresOnTurnNumber === null) continue;
+        if (this.turnNumber < stone.expiresOnTurnNumber) continue;
+
+        board[row][col] = null;
+        removedCount++;
+      }
+    }
+
+    return removedCount;
   }
 }

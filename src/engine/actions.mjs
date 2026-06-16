@@ -1,3 +1,5 @@
+import StoneData from "src/engine/stone-data.mjs";
+
 /**
  * @typedef {"shield" | "scar" | "spread" | "switch" | "assimilate"} ActionKey
  */
@@ -103,6 +105,76 @@ export class ShieldAction {
 
     stone.capturable = false;
     stone.shieldedByColorName = currentColorName;
+
+    gameState.markCurrentPlayerActionUsedAndAdvanceTurn();
+
+    return {
+      legal: true,
+      reason: null,
+    };
+  }
+}
+
+export class ScarAction {
+  constructor() {
+    this.key = ACTIONS.SCAR;
+  }
+
+  /**
+   * @param {{
+   *   gameState: import("src/engine/game-state.mjs").default,
+   *   col: number,
+   *   row: number,
+   * }} params
+   * @returns {{ legal: boolean, reason: string | null }}
+   */
+  execute({ gameState, col, row }) {
+    const currentColorName = gameState.getCurrentColorName();
+    const board = gameState.getBoard();
+    const targetStone = board?.[row]?.[col] ?? null;
+
+    if (targetStone === null) {
+      return {
+        legal: false,
+        reason: "empty-target",
+      };
+    }
+
+    if (targetStone.colorName === "scar") {
+      return {
+        legal: false,
+        reason: "target-already-scar",
+      };
+    }
+
+    if (targetStone.colorName === currentColorName) {
+      return {
+        legal: false,
+        reason: "cannot-scar-own-stone",
+      };
+    }
+
+    if (
+      !gameState.isHigherScoringPlayer(targetStone.colorName, currentColorName)
+    ) {
+      return {
+        legal: false,
+        reason: "target-player-not-higher-scoring",
+      };
+    }
+
+    gameState.commitSnapshot();
+
+    board[row][col] = new StoneData({
+      colorName: "scar",
+      capturable: false,
+      originalColorName: targetStone.colorName,
+      scarCreatedByColorName: currentColorName,
+
+      // Start of user's second future turn.
+      expiresOnTurnNumber:
+        gameState.getTurnNumber() + gameState.getTurnOrderLength() * 2,
+    });
 
     gameState.markCurrentPlayerActionUsedAndAdvanceTurn();
 

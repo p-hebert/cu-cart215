@@ -13,6 +13,7 @@ export const STONE_COLORS = [
   { name: "white", value: "#ffffff" },
   { name: "blood-red", value: "#8a0303" },
   { name: "midnight-blue", value: "#191970" },
+  { name: "scar", value: "#808080" },
 ];
 
 export default class ScoreCalculator {
@@ -37,7 +38,8 @@ export default class ScoreCalculator {
     for (const [col, row, value] of this.pointSheet) {
       const colorName = board?.[row]?.[col]?.colorName ?? null;
 
-      if (colorName === null || colorName === undefined) continue;
+      if (colorName === null) continue;
+      if (!(colorName in scores)) continue;
 
       scores[colorName] += value;
     }
