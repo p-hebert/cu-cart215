@@ -154,6 +154,22 @@ export default class GoBoardState {
   }
 
   /**
+   * @param {Array<{ col: number, row: number }>} positions
+   * @param {StoneColorName} colorName
+   * @returns {MoveResult}
+   */
+  getMultiStoneMovePreview(positions, colorName) {
+    const previousBoard = this.getPreviousBoardForKo?.() ?? null;
+
+    return this.rulesHelper.getMultiStoneMoveResult(
+      this.board,
+      positions,
+      colorName,
+      { previousBoard },
+    );
+  }
+
+  /**
    * @param {number} col
    * @param {number} row
    * @param {StoneColorName} colorName

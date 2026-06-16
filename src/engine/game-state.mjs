@@ -1,4 +1,9 @@
-import { ACTIONS, ScarAction, ShieldAction } from "src/engine/actions.mjs";
+import {
+  ACTIONS,
+  ScarAction,
+  ShieldAction,
+  SpreadAction,
+} from "src/engine/actions.mjs";
 import GoBoardState from "src/engine/go-board-state.mjs";
 import ScoreCalculator from "src/engine/score-calculator.mjs";
 
@@ -47,6 +52,7 @@ export default class GameState {
     this.actions = {
       [ACTIONS.SHIELD]: new ShieldAction(),
       [ACTIONS.SCAR]: new ScarAction(),
+      [ACTIONS.SPREAD]: new SpreadAction(),
     };
     this.actionCooldowns = this.createEmptyCooldowns();
 
@@ -110,6 +116,15 @@ export default class GameState {
     const colorName = this.getCurrentColorName();
 
     return this.goBoardState.getLegalMovePreview(col, row, colorName);
+  }
+
+  /**
+   * @param {Array<{ col: number, row: number }>} positions
+   * @param {StoneColorName} colorName
+   * @returns {MoveResult}
+   */
+  getMultiStoneMovePreview(positions, colorName = this.getCurrentColorName()) {
+    return this.goBoardState.getMultiStoneMovePreview(positions, colorName);
   }
 
   /**

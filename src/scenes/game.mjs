@@ -5,8 +5,9 @@ import NotificationToast from "src/components/notification-toast.mjs";
 import ScoreTracker from "src/components/score-tracker.mjs";
 import StoneSelector from "src/components/stone-selector.mjs";
 import ActionAvailabilityHelper from "src/engine/action-availability-helper.mjs";
-import { ACTION_LIST } from "src/engine/actions.mjs";
+import { ACTIONS, ACTION_LIST } from "src/engine/actions.mjs";
 import GameState from "src/engine/game-state.mjs";
+import { isPointValueAt } from "src/engine/points.mjs";
 import ScoreCalculator from "src/engine/score-calculator.mjs";
 import { BaseScene } from "src/p5/scene.mjs";
 
@@ -35,6 +36,7 @@ export default class GameScene extends BaseScene {
     this.board = null;
 
     this.gameState = null;
+    this.pendingActionTargets = [];
     // { col, row } | null
     this.hoveredIntersection = null;
     this.hoverMoveResult = null;
@@ -149,6 +151,9 @@ export default class GameScene extends BaseScene {
 
       actions: ACTION_LIST,
       offsetY: 44,
+      onActionChange: () => {
+        this.clearPendingActionTargets();
+      },
     });
     this.stoneSelector.setup(p5);
 
@@ -205,6 +210,7 @@ export default class GameScene extends BaseScene {
     this.board.draw(p5);
     this.drawStones(p5);
     this.drawCapturePreview(p5);
+    this.drawPendingActionTargets(p5);
     this.drawGhostStone(p5);
 
     this.countdownTimer.draw(p5);
@@ -345,6 +351,24 @@ export default class GameScene extends BaseScene {
     p5.pop();
   }
 
+  drawPendingActionTargets(p5) {
+    for (const position of this.pendingActionTargets) {
+      const colorName = this.gameState.getCurrentColorName();
+
+      this.drawStoneAtGridPosition(
+        p5,
+        position.col,
+        position.row,
+        colorName,
+        0.5,
+        {
+          strokeColor: "#00aaff",
+          strokeWeight: 4,
+        },
+      );
+    }
+  }
+
   updateActionAvailability() {
     const currentColorName = this.gameState.getCurrentColorName();
 
@@ -360,6 +384,10 @@ export default class GameScene extends BaseScene {
       });
 
     this.stoneSelector.setActionEnabledState(enabledState);
+  }
+
+  clearPendingActionTargets() {
+    this.pendingActionTargets = [];
   }
 
   markCurrentPlayerActionUsed() {
@@ -459,20 +487,59 @@ export default class GameScene extends BaseScene {
     const selectedActionKey = this.stoneSelector.getSelectedActionKey();
 
     if (selectedActionKey) {
-      this.executeSelectedActionAt(col, row);
+      this.executeSelectedActionAt(p5, col, row);
+    } else {
+      if (!this.hoverMoveResult || !this.hoverMoveResult.legal) {
+        this.notificationToast.show(
+          `Illegal move: ${this.hoverMoveResult?.reason}`,
+        );
+        return;
+      }
+
+      this.placeStone(col, row);
       this.updateHoveredIntersection(p5);
-      return;
     }
+  }
 
-    if (!this.hoverMoveResult || !this.hoverMoveResult.legal) {
+  handleSpreadTargetClick(col, row) {
+    if (!isPointValueAt(col, row, [1, 3])) {
       this.notificationToast.show(
-        `Illegal move: ${this.hoverMoveResult?.reason}`,
+        "Illegal action: Spread targets must be 1-point or 3-point intersections",
       );
-      return;
+      return false;
     }
 
-    this.placeStone(col, row);
-    this.updateHoveredIntersection(p5);
+    const alreadySelected = this.pendingActionTargets.some((position) => {
+      return position.col === col && position.row === row;
+    });
+
+    if (alreadySelected) {
+      this.notificationToast.show("Illegal action: duplicate Spread target");
+      return false;
+    }
+
+    this.pendingActionTargets.push({ col, row });
+
+    if (this.pendingActionTargets.length < 2) {
+      this.notificationToast.show("Spread: select one more intersection");
+      return false;
+    }
+
+    const result = this.gameState.executeCurrentPlayerAction(ACTIONS.SPREAD, {
+      positions: this.pendingActionTargets,
+    });
+
+    if (!result.legal) {
+      this.notificationToast.show(`Illegal action: ${result.reason}`);
+      this.clearPendingActionTargets();
+      return false;
+    }
+
+    this.stoneSelector.setSelectedActionKey(null);
+    this.clearPendingActionTargets();
+    this.syncSelectorFromGameState();
+
+    return true;
   }
 
   /**
@@ -501,10 +568,14 @@ export default class GameScene extends BaseScene {
     return true;
   }
 
-  executeSelectedActionAt(col, row) {
+  executeSelectedActionAt(p5, col, row) {
     const actionKey = this.stoneSelector.getSelectedActionKey();
 
     if (!actionKey) return false;
+
+    if (actionKey === ACTIONS.SPREAD) {
+      return this.handleSpreadTargetClick(col, row);
+    }
 
     const result = this.gameState.executeCurrentPlayerAction(actionKey, {
       col,
@@ -517,7 +588,9 @@ export default class GameScene extends BaseScene {
     }
 
     this.stoneSelector.setSelectedActionKey(null);
+    this.clearPendingActionTargets();
     this.syncSelectorFromGameState();
+    this.updateHoveredIntersection?.(p5);
 
     return true;
   }

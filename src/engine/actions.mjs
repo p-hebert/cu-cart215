@@ -1,3 +1,4 @@
+import { isPointValueAt } from "src/engine/points.mjs";
 import StoneData from "src/engine/stone-data.mjs";
 
 /**
@@ -181,6 +182,74 @@ export class ScarAction {
     return {
       legal: true,
       reason: null,
+    };
+  }
+}
+
+export class SpreadAction {
+  constructor() {
+    this.key = ACTIONS.SPREAD;
+    this.allowedPointValues = [1, 3];
+    this.requiredTargetCount = 2;
+  }
+
+  /**
+   * @param {{
+   *   gameState: import("src/engine/game-state.mjs").default,
+   *   positions: Array<{ col: number, row: number }>,
+   * }} params
+   * @returns {{ legal: boolean, reason: string | null, capturedPositions?: Array<{ col: number, row: number }> }}
+   */
+  execute({ gameState, positions }) {
+    const currentColorName = gameState.getCurrentColorName();
+
+    if (!Array.isArray(positions)) {
+      return {
+        legal: false,
+        reason: "missing-targets",
+      };
+    }
+
+    if (positions.length !== this.requiredTargetCount) {
+      return {
+        legal: false,
+        reason: "spread-requires-two-targets",
+      };
+    }
+
+    for (const position of positions) {
+      if (
+        !isPointValueAt(position.col, position.row, this.allowedPointValues)
+      ) {
+        return {
+          legal: false,
+          reason: "spread-target-must-be-1-or-3-point-intersection",
+        };
+      }
+    }
+
+    const moveResult = gameState.getMultiStoneMovePreview(
+      positions,
+      currentColorName,
+    );
+
+    if (!moveResult.legal) {
+      return {
+        legal: false,
+        reason: moveResult.reason,
+      };
+    }
+
+    gameState.commitSnapshot();
+
+    gameState.goBoardState.setBoard(moveResult.resultingBoard);
+
+    gameState.markCurrentPlayerActionUsedAndAdvanceTurn();
+
+    return {
+      legal: true,
+      reason: null,
+      capturedPositions: moveResult.capturedPositions,
     };
   }
 }

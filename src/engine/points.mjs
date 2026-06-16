@@ -68,3 +68,21 @@ export const POINT_SHEET = [
   // center
   [3, 3, 12],
 ];
+
+export function getPointValueAt(col, row, pointSheet = POINT_SHEET) {
+  const entry = pointSheet.find(([entryCol, entryRow]) => {
+    return entryCol === col && entryRow === row;
+  });
+
+  return entry?.[2] ?? null;
+}
+
+export function isPointValueAt(
+  col,
+  row,
+  allowedValues,
+  pointSheet = POINT_SHEET,
+) {
+  const value = getPointValueAt(col, row, pointSheet);
+  return allowedValues.includes(value);
+}
