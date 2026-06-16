@@ -109,6 +109,16 @@ export default class ActionAvailabilityHelper {
       enabled[ACTIONS.SWITCH] = false;
     }
 
+    if (
+      !this.hasAssimilateTarget({
+        currentColorName,
+        scores,
+        gameState,
+      })
+    ) {
+      enabled[ACTIONS.ASSIMILATE] = false;
+    }
+
     // Optional but useful: Switch also needs at least one valid enemy target.
     if (
       !this.hasHigherScoringNonCenterTarget({
@@ -145,6 +155,47 @@ export default class ActionAvailabilityHelper {
         const targetScore = scores[stone.colorName] ?? 0;
 
         if (targetScore > currentScore) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * @param {{
+   *   currentColorName: StoneColorName,
+   *   scores: ScoreMap,
+   *   gameState: import("src/engine/game-state.mjs").default,
+   * }} params
+   * @returns {boolean}
+   */
+  hasAssimilateTarget({ currentColorName, scores, gameState }) {
+    const board = gameState.getBoard();
+
+    for (let row = 0; row < board.length; row++) {
+      for (let col = 0; col < board[row].length; col++) {
+        const stone = board[row][col];
+
+        if (stone === null) continue;
+        if (stone.colorName === "scar") continue;
+        if (stone.colorName === currentColorName) continue;
+
+        const targetScore = scores[stone.colorName] ?? 0;
+        const currentScore = scores[currentColorName] ?? 0;
+
+        if (targetScore <= currentScore) continue;
+
+        const isAdjacentToLargeEnoughGroup =
+          gameState.isAdjacentToControlledGroupOfSize(
+            col,
+            row,
+            currentColorName,
+            2,
+          );
+
+        if (isAdjacentToLargeEnoughGroup) {
           return true;
         }
       }

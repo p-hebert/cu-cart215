@@ -243,6 +243,29 @@ export default class GoRulesHelper {
     return board[row][col]?.colorName ?? null;
   }
 
+  /**
+   * Returns the color/faction that this stone belongs to for capture purposes.
+   *
+   * Scar stones are visually "scar", but they behave as hostile blockers
+   * owned by the player who created them.
+   *
+   * @param {BoardCell[][]} board
+   * @param {number} col
+   * @param {number} row
+   * @returns {PlayerColorName | null}
+   */
+  getCellCaptureColorName(board, col, row) {
+    const stone = board?.[row]?.[col] ?? null;
+
+    if (stone === null) return null;
+
+    if (stone.colorName === "scar") {
+      return stone.scarCreatedByColorName;
+    }
+
+    return stone.colorName;
+  }
+
   isCellEmpty(board, col, row) {
     return board[row][col] === null;
   }
@@ -288,14 +311,14 @@ export default class GoRulesHelper {
     const checkedGroupStones = new Set();
 
     for (const neighbor of this.getNeighbors(placedCol, placedRow)) {
-      const neighborColor = this.getCellColorName(
+      const neighborCaptureColorName = this.getCellCaptureColorName(
         board,
         neighbor.col,
         neighbor.row,
       );
 
-      if (neighborColor === null) continue;
-      if (neighborColor === placedColorName) continue;
+      if (neighborCaptureColorName === null) continue;
+      if (neighborCaptureColorName === placedColorName) continue;
 
       const neighborKey = this.positionKey(neighbor.col, neighbor.row);
       if (checkedGroupStones.has(neighborKey)) continue;
@@ -550,9 +573,13 @@ export default class GoRulesHelper {
    * @returns {GridPosition[]}
    */
   getGroup(board, startCol, startRow) {
-    const colorName = this.getCellColorName(board, startCol, startRow);
+    const captureColorName = this.getCellCaptureColorName(
+      board,
+      startCol,
+      startRow,
+    );
 
-    if (colorName === null) return [];
+    if (captureColorName === null) return [];
 
     const group = [];
     const stack = [{ col: startCol, row: startRow }];
@@ -565,18 +592,26 @@ export default class GoRulesHelper {
       if (visited.has(key)) continue;
       visited.add(key);
 
-      if (
-        this.getCellColorName(board, current.col, current.row) !== colorName
-      ) {
+      const currentCaptureColorName = this.getCellCaptureColorName(
+        board,
+        current.col,
+        current.row,
+      );
+
+      if (currentCaptureColorName !== captureColorName) {
         continue;
       }
 
       group.push(current);
 
       for (const neighbor of this.getNeighbors(current.col, current.row)) {
-        if (
-          this.getCellColorName(board, neighbor.col, neighbor.row) === colorName
-        ) {
+        const neighborCaptureColorName = this.getCellCaptureColorName(
+          board,
+          neighbor.col,
+          neighbor.row,
+        );
+
+        if (neighborCaptureColorName === captureColorName) {
           stack.push(neighbor);
         }
       }

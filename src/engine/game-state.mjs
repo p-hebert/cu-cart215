@@ -1,5 +1,6 @@
 import {
   ACTIONS,
+  AssimilateAction,
   ScarAction,
   ShieldAction,
   SpreadAction,
@@ -55,6 +56,7 @@ export default class GameState {
       [ACTIONS.SCAR]: new ScarAction(),
       [ACTIONS.SPREAD]: new SpreadAction(),
       [ACTIONS.SWITCH]: new SwitchAction(),
+      [ACTIONS.ASSIMILATE]: new AssimilateAction(),
     };
     this.actionCooldowns = this.createEmptyCooldowns();
 
@@ -145,6 +147,65 @@ export default class GameState {
    */
   getStoneAt(col, row) {
     return this.getBoard()?.[row]?.[col] ?? null;
+  }
+
+  /**
+   * Returns whether the given position is orthogonally adjacent to a controlled
+   * group of at least `minimumGroupSize`.
+   *
+   * Uses capture ownership, so current-player Scar blockers count as controlled
+   * by the player who created them.
+   *
+   * @param {number} col
+   * @param {number} row
+   * @param {StoneColorName} colorName
+   * @param {number} minimumGroupSize
+   * @returns {boolean}
+   */
+  isAdjacentToControlledGroupOfSize(col, row, colorName, minimumGroupSize) {
+    const board = this.getBoard();
+    const checkedGroupKeys = new Set();
+
+    for (const neighbor of this.goBoardState.rulesHelper.getNeighbors(
+      col,
+      row,
+    )) {
+      const neighborCaptureColorName =
+        this.goBoardState.rulesHelper.getCellCaptureColorName(
+          board,
+          neighbor.col,
+          neighbor.row,
+        );
+
+      if (neighborCaptureColorName !== colorName) continue;
+
+      const group = this.goBoardState.rulesHelper.getGroup(
+        board,
+        neighbor.col,
+        neighbor.row,
+      );
+
+      if (group.length === 0) continue;
+
+      const groupKey = group
+        .map((position) => {
+          return this.goBoardState.rulesHelper.positionKey(
+            position.col,
+            position.row,
+          );
+        })
+        .sort()
+        .join("|");
+
+      if (checkedGroupKeys.has(groupKey)) continue;
+      checkedGroupKeys.add(groupKey);
+
+      if (group.length >= minimumGroupSize) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**

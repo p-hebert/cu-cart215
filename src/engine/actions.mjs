@@ -177,11 +177,15 @@ export class ScarAction {
         gameState.getTurnNumber() + gameState.getTurnOrderLength() * 2,
     });
 
+    const capturedPositions =
+      gameState.goBoardState.resolveCapturesAroundPositions([{ col, row }]);
+
     gameState.markCurrentPlayerActionUsedAndAdvanceTurn();
 
     return {
       legal: true,
       reason: null,
+      capturedPositions,
     };
   }
 }
@@ -364,6 +368,119 @@ export class SwitchAction {
       gameState.goBoardState.rulesHelper.doAnyPositionsHaveNoLiberties(
         simulatedBoard,
         [targetPosition],
+      )
+    ) {
+      return {
+        legal: false,
+        reason: "suicide",
+      };
+    }
+
+    gameState.commitSnapshot();
+
+    gameState.goBoardState.setBoard(simulatedBoard);
+
+    gameState.markCurrentPlayerActionUsedAndAdvanceTurn();
+
+    return {
+      legal: true,
+      reason: null,
+      capturedPositions,
+    };
+  }
+}
+
+export class AssimilateAction {
+  constructor() {
+    this.key = ACTIONS.ASSIMILATE;
+    this.requiredAdjacentOwnStones = 2;
+  }
+
+  /**
+   * @param {{
+   *   gameState: import("src/engine/game-state.mjs").default,
+   *   col: number,
+   *   row: number,
+   * }} params
+   * @returns {{
+   *   legal: boolean,
+   *   reason: string | null,
+   *   capturedPositions?: Array<{ col: number, row: number }>,
+   * }}
+   */
+  execute({ gameState, col, row }) {
+    const currentColorName = gameState.getCurrentColorName();
+    const board = gameState.getBoard();
+    const targetStone = board?.[row]?.[col] ?? null;
+
+    if (targetStone === null) {
+      return {
+        legal: false,
+        reason: "empty-target",
+      };
+    }
+
+    if (targetStone.colorName === "scar") {
+      return {
+        legal: false,
+        reason: "cannot-assimilate-scar",
+      };
+    }
+
+    if (targetStone.colorName === currentColorName) {
+      return {
+        legal: false,
+        reason: "cannot-assimilate-own-stone",
+      };
+    }
+
+    if (
+      !gameState.isHigherScoringPlayer(targetStone.colorName, currentColorName)
+    ) {
+      return {
+        legal: false,
+        reason: "target-player-not-higher-scoring",
+      };
+    }
+
+    const isAdjacentToLargeEnoughGroup =
+      gameState.isAdjacentToControlledGroupOfSize(
+        col,
+        row,
+        currentColorName,
+        this.requiredAdjacentOwnStones,
+      );
+
+    if (!isAdjacentToLargeEnoughGroup) {
+      return {
+        legal: false,
+        reason: "target-must-be-adjacent-to-your-group-of-two-or-more",
+      };
+    }
+
+    const simulatedBoard = gameState.goBoardState.cloneBoard(board);
+
+    // Convert the target to the current player's color.
+    // We create a fresh StoneData to clear target-specific effects.
+    simulatedBoard[row][col] = new StoneData({
+      colorName: currentColorName,
+      capturable: true,
+    });
+
+    const capturedPositions =
+      gameState.goBoardState.rulesHelper.resolveCapturesAroundPositions(
+        simulatedBoard,
+        [{ col, row }],
+      );
+
+    const convertedStoneAfterCapture = simulatedBoard?.[row]?.[col] ?? null;
+
+    if (
+      convertedStoneAfterCapture !== null &&
+      convertedStoneAfterCapture.colorName === currentColorName &&
+      gameState.goBoardState.rulesHelper.doAnyPositionsHaveNoLiberties(
+        simulatedBoard,
+        [{ col, row }],
       )
     ) {
       return {
