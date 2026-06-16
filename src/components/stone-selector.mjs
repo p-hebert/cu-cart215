@@ -40,6 +40,7 @@ import { IP5Lifecycle } from "src/p5/interfaces.mjs";
  * @property {StoneColor[]} [colors]
  * @property {StoneColorName} [selectedColorName]
  * @property {boolean} [enabled]
+ * @property {boolean} [isOnActionCooldown]
  * @property {number} [stoneSize]
  * @property {number} [gap]
  * @property {number} [offsetY]
@@ -88,10 +89,13 @@ export default class StoneSelector extends IP5Lifecycle {
     this.actionTextSize = options.actionTextSize ?? 18;
     this.actionGap = options.actionGap ?? 18;
     this.actionOffsetY = options.actionOffsetY ?? 38;
-
     this.onActionChange = options.onActionChange ?? null;
-
     this.actionButtons = [];
+
+    this.isOnActionCooldown = options.isOnActionCooldown ?? false;
+    this.cooldownText = options.cooldownText ?? "cooldown";
+    this.cooldownTextSize = options.cooldownTextSize ?? 13;
+    this.cooldownOffsetY = options.cooldownOffsetY ?? 18;
 
     this.stoneSize = options.stoneSize ?? 28;
     this.gap = options.gap ?? 16;
@@ -153,9 +157,6 @@ export default class StoneSelector extends IP5Lifecycle {
   /**
    * @param {import("p5")} p5
    */
-  /**
-   * @param {import("p5")} p5
-   */
   draw(p5) {
     this.updateButtonLayout(p5);
     this.updateActionButtonLayout(p5);
@@ -165,9 +166,38 @@ export default class StoneSelector extends IP5Lifecycle {
       button.draw(p5);
     }
 
+    if (this.isOnActionCooldown) {
+      this.drawCooldownLabel(p5);
+    }
+
     for (const actionButton of this.actionButtons) {
       actionButton.draw(p5);
     }
+  }
+
+  /**
+   * @param {import("p5")} p5
+   */
+  drawCooldownLabel(p5) {
+    if (this.actionButtons.length === 0) return;
+
+    const firstButton = this.actionButtons[0];
+    const lastButton = this.actionButtons[this.actionButtons.length - 1];
+
+    const centerX = (firstButton.x + lastButton.x) / 2;
+    const y = firstButton.y - this.cooldownOffsetY;
+
+    p5.push();
+    {
+      p5.textAlign(p5.CENTER, p5.CENTER);
+      p5.textFont("monospace");
+      p5.textSize(this.cooldownTextSize);
+      p5.textStyle(p5.BOLD);
+      p5.noStroke();
+      p5.fill("#c76b00");
+      p5.text(this.cooldownText, centerX, y);
+    }
+    p5.pop();
   }
 
   /**
@@ -376,6 +406,13 @@ export default class StoneSelector extends IP5Lifecycle {
       (currentIndex - 1 + this.colors.length) % this.colors.length;
 
     this.setSelectedColorName(this.colors[previousIndex].name);
+  }
+
+  /**
+   * @param {boolean} isOnActionCooldown
+   */
+  setIsOnActionCooldown(isOnActionCooldown) {
+    this.isOnActionCooldown = isOnActionCooldown;
   }
 
   /**

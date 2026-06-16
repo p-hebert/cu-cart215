@@ -362,10 +362,15 @@ export default class GameScene extends BaseScene {
   }
 
   syncSelectorFromGameState() {
-    this.stoneSelector.setSelectedColorName(
-      this.gameState.getCurrentColorName(),
-    );
+    const currentColorName = this.gameState.getCurrentColorName();
+
+    this.stoneSelector.setSelectedColorName(currentColorName);
     this.stoneSelector.setSelectedActionKey(null);
+
+    this.stoneSelector.setIsOnActionCooldown(
+      this.gameState.getActionCooldowns()[currentColorName] === true,
+    );
+
     this.updateActionAvailability();
   }
 
