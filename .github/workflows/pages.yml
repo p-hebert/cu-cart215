@@ -1,0 +1,135 @@
+# .github/workflows/pages.yml
+# -----------------------------------------------------------------------------
+# PURPOSE
+#   Build & deploy a *monorepo of websites* to GitHub Pages using the
+#   "artifact upload + deploy-pages" Actions flow (the modern recommended way).
+#   - Supports projects that:
+#       1) need a Vite build (React or vanilla)
+#       2) are plain static sites (no build step)
+#       3) have some other npm build (Next/Vue/etc. – adjust as needed)
+#   - Outputs a unified static site in ./site which becomes the Github Pages root.
+#
+# KEY IDEAS
+#   - We stage everything into ./site and upload that as the Pages artifact.
+#   - For *Project Pages* (most repos), final URLs look like:
+#       https://<user>.github.io/<repo>/<subfolder>/
+#     so Vite projects must be built with --base "/<repo>/<subfolder>/".
+#   - We drop an empty `.nojekyll` so GitHub Pages doesn't run Jekyll.
+#
+# ATTRIBUTION:
+#   This workflow was rewritten (overhauled from a manually written version)
+#   via the use of ChatGPT-5. Full conversation can be found here:
+#   https://chatgpt.com/share/68ccd038-3ac4-800d-a165-6bd14576a273
+#
+#   Documentation of this file is 95%+ AI-generated.
+# -----------------------------------------------------------------------------
+
+name: Deploy Pages (Monorepo websites)
+
+on:
+  # Triggers:
+  push:
+    branches: [main] # Deploy on pushes to main
+  workflow_dispatch: # Allow manual runs from the Actions tab
+
+permissions:
+  # Least-privilege permissions required by the Pages actions:
+  contents: read # read repo contents to build
+  pages: write # upload & deploy to Pages
+  id-token: write # OIDC token for actions/deploy-pages@v4
+
+concurrency:
+  # Ensure only one Pages build/deploy runs at a time. If a new push happens,
+  # cancel the in-flight one to avoid racing deployments.
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Build job compiles/collects all websites into ./site and uploads it.
+    runs-on: ubuntu-latest
+
+    steps:
+      # --- SETUP ----------------------------------------------------------------------------------
+
+      # Pulls the commit for this workflow run.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # --- CREATE PAGES ROOT (./site) -------------------------------------------------------------
+
+      - name: Prepare ./site (root)
+        # ./site is the folder that will become GitHub Pages' document root.
+        run: |
+          set -eux
+          rm -rf site
+          mkdir -p site
+
+          # A generic SPA-friendly 404.
+          cp pages/404.html site/404.html
+
+          # Prevent GitHub Pages from running Jekyll (which ignores folders like "_*").
+          # Many modern build tools emit underscored paths; .nojekyll avoids surprises.
+          touch site/.nojekyll
+
+      # --- PER-SITE BUILD/COLLECT BLOCKS ----------------------------------------------------------
+      # Convention used here:
+      #   - Repo path:      projects/<site-name>
+      #   - Public URL:     /<repo>/projects/<site-name>/
+      #   - Final on disk:  site/projects/<site-name>/
+      #
+      # IMPORTANT (Vite only):
+      #   Vite MUST know its public base at build-time or assets will return 404 on Pages.
+      #   For Vite pages, we build with: --base "/${REPO}/projects/<site-name>/"
+      #   (GitHub exposes the repo name in github.event.repository.name.)
+
+      # Vite/React static sites (with build step)
+      - name: Build Go King of The Hill (Vite)
+        if: ${{ hashFiles('package.json') != '' }}
+        working-directory:
+        env:
+          # We'll derive the correct base path dynamically from the repo name.
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          set -eux
+          npm ci
+          npm run build -- --base "/${REPO}/"
+
+      - name: Collect Go King of The Hill -> site/
+        run: |
+          set -eux
+          if [ -d dist ]; then
+            cp -r dist/* site/
+          else
+            echo "No dist/ found for Go King of The Hill — skipping copy."
+            exit 1
+          fi
+
+      # --- UPLOAD ARTIFACT FOR PAGES --------------------------------------------------------------
+
+      - name: Upload Pages artifact (./site)
+        # Packages ./site into an artifact for the deploy job.
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    # Deploy job consumes the artifact and publishes to GitHub Pages.
+    runs-on: ubuntu-latest
+    needs: build # wait for the build job
+    environment:
+      # "github-pages" is a special environment used by the Pages deploy action.
+      # It shows the deployed URL and keeps a history of deployments.
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment # expose "page_url" output for the environment.url above
+        uses: actions/deploy-pages@v4
