@@ -38,8 +38,8 @@ export default class Stone extends IP5Drawable {
     const colors = {
       black: "#000000",
       white: "#ffffff",
-      "blood-red": "#8a0303",
-      "midnight-blue": "#191970",
+      "blood-red": "#f00",
+      "midnight-blue": "#00f",
     };
 
     return colors[this.colorName] ?? "#000000";

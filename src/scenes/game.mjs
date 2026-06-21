@@ -18,8 +18,8 @@ import { BaseScene } from "src/p5/scene.mjs";
 const STONE_COLORS = {
   black: "#000000",
   white: "#ffffff",
-  "blood-red": "#8a0303",
-  "midnight-blue": "#191970",
+  "blood-red": "#f00",
+  "midnight-blue": "#00f",
   scar: "#808080",
 };
 
@@ -177,7 +177,7 @@ export default class GameScene extends BaseScene {
 
     this.countdownTimer = new CountdownTimer({
       board: this.board,
-      durationSeconds: 10 * 60,
+      durationSeconds: 15 * 60,
       offsetY: 44,
       fontSize: 32,
     });

@@ -11,8 +11,8 @@ import { POINT_SHEET } from "src/engine/points.mjs";
 export const PLAYER_COLORS = [
   { name: "black", value: "#000000" },
   { name: "white", value: "#ffffff" },
-  { name: "blood-red", value: "#8a0303" },
-  { name: "midnight-blue", value: "#191970" },
+  { name: "blood-red", value: "#f00" },
+  { name: "midnight-blue", value: "#00f" },
 ];
 
 // Temporary alias if other files already import STONE_COLORS

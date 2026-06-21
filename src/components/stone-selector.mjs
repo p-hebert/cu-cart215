@@ -69,8 +69,8 @@ export default class StoneSelector extends IP5Lifecycle {
     this.colors = options.colors ?? [
       { name: "black", value: "#000000" },
       { name: "white", value: "#ffffff" },
-      { name: "blood-red", value: "#8a0303" },
-      { name: "midnight-blue", value: "#191970" },
+      { name: "blood-red", value: "#f00" },
+      { name: "midnight-blue", value: "#00f" },
     ];
 
     this.selectedColorName = options.selectedColorName ?? this.colors[0].name;
